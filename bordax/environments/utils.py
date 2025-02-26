@@ -2,8 +2,11 @@ import jax
 import jax.numpy as jnp
 import flax
 
+import numpy as np
+
 from gymnax.environments.environment import Environment as EnvGymnax
 from gymnasium import Env as EnvGymnasium
+import gymnasium
 
 from typing import Union, Callable, NamedTuple, Any
 
@@ -53,7 +56,21 @@ def generate_unroll(
             )
 
             return (final_obs, final_state), traj_batch
-        elif isinstance(env, EnvGymnasium):
-            raise NotImplementedError
+        elif isinstance(env, gymnasium.vector.VectorEnv):
+            
+            traj_batch = []
+            obs = init_obs
+
+            for i in range(unroll_length):
+                action, policy_info = policy(obs, key)
+                n_obs, reward, terminated, truncated, _ = env.step(np.asarray(action))
+                done = terminated | truncated
+                transition = Transition(done, action, reward, policy_info["log_prob"], obs, jnp.zeros_like(n_obs))
+                obs = n_obs
+                traj_batch.append(transition)
+
+            traj_batch = jax.tree_map(lambda *args: jnp.stack(args, axis=0), *traj_batch)
+            return (n_obs, []), traj_batch
+
         else:
             raise NotImplementedError

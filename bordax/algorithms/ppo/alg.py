@@ -16,6 +16,8 @@ from functools import partial
 from gymnax.environments.environment import Environment as EnvGymnax
 from gymnasium import Env as EnvGymnasium
 
+import gymnasium
+
 import time
 
 # TODO list:
@@ -65,7 +67,7 @@ def gradient_update_fn(
         params = optax.apply_updates(params, params_update)
         return value, params, optimizer_state
 
-    return gradient_update
+    return jax.jit(gradient_update)
 
 
 def minibatch_step_fn(gradient_update_fn):
@@ -80,7 +82,7 @@ def minibatch_step_fn(gradient_update_fn):
 
         return (optimizer_state, params, key), metrics
 
-    return minibatch_step
+    return jax.jit(minibatch_step)
 
 
 def sgd_step_fn(minibatch_step, config:PPOConfig):
@@ -113,7 +115,7 @@ def sgd_step_fn(minibatch_step, config:PPOConfig):
 
         return (optimizer_state, params, key), metrics
 
-    return sgd_step
+    return jax.jit(sgd_step)
 
 def training_step_fn(
     env, make_policy, make_value, sgd_step, config: PPOConfig
@@ -137,6 +139,7 @@ def training_step_fn(
                                                     config.unroll_length, 
                                                     env_params=training_state.env_params, 
                                                     num_envs=config.num_envs)
+
 
         # calculate values (baseline)
         values = value(data.obs)
@@ -247,7 +250,10 @@ def train(
     if config.debug:
         print("Training started")
         print("Architecture: ", policy_maker.__name__)
-        print("Environment: ", environment.name)
+        if isinstance(environment, gymnasium.vector.VectorEnv):
+            print("Environment: ", environment.spec.id)
+        else:
+            print("Environment: ", environment.name)
         print("Seed: ", config.seed) 
 
     # parallelization!
@@ -300,10 +306,17 @@ def train(
 
     key_env, key_init_params, key_training, key_eval = jax.random.split(key, 4)
 
-    reset_fn = jax.vmap(env.reset, in_axes=(0, None))
-    key_envs = jax.random.split(key_env, config.num_envs)
+    if isinstance(env, EnvGymnax):
 
-    obs_v, env_state_v = reset_fn(key_envs, env_params)
+        reset_fn = jax.vmap(env.reset, in_axes=(0, None))
+        key_envs = jax.random.split(key_env, config.num_envs)
+
+        obs_v, env_state_v = reset_fn(key_envs, env_params)
+
+    elif isinstance(env, gymnasium.vector.VectorEnv):
+        obs_v, info = env.reset(seed=config.seed)
+        obs_v = jnp.array(obs_v)
+        env_state_v = jnp.array([])
 
     key_actor, key_critic = jax.random.split(key_init_params)
 
@@ -316,10 +329,10 @@ def train(
         optimizer.init(init_policy_params), init_policy_params, env_params
     )
 
-    evaluate = jax.jit(evaluate_fn(env, make_policy, 50, env_params))
+    evaluate = jax.jit(evaluate_fn(env, make_policy, 30, env_params))
     checkpoints = []
 
-    # print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
+    print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
 
     for it in range(config.num_checkpoints):
         # training epochs
