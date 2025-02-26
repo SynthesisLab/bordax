@@ -191,7 +191,8 @@ def training_epoch_fn(training_step, config: PPOConfig):
     return training_epoch
 
 def evaluate_fn(env, make_policy, n_envs, env_params):
-    def evaluate(key, params):
+    # evaluation of a jittable environment, for example gymnax
+    def evaluate_jittable(key, params):
         policy = make_policy(params.actor_params, deterministic=True)
 
         def evaluate_one_episode(key):
@@ -216,8 +217,37 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
         key_v = jax.random.split(key, n_envs)
         total_rewards = jax.vmap(evaluate_one_episode)(key_v)
         return total_rewards
+    
+    # evaluation of a non-jittable gymnasium environment
+    def evaluate_non_jittable(key, params):
+        policy = make_policy(params.actor_params, deterministic=True)
 
-    return evaluate
+        def evaluate_one_episode(seed):
+            obs, _ = env.reset(seed=seed)
+            total_reward = 0.0
+            done = False
+            truncated = False
+            while not done and not truncated:
+                action, _ = policy(jnp.array(obs), seed)
+                obs, reward, done, truncated, info = env.step(action.item())
+                total_reward += reward
+
+            return total_reward
+        total_rewards = []
+        
+        # get the seeds from the key
+        keys = jax.random.split(key, n_envs)
+        for key in keys:
+            seed = jax.random.randint(key, (), 0, 2**8).item()
+            total_rewards.append(evaluate_one_episode(seed))
+        return total_rewards
+
+    if isinstance(env, EnvGymnax):
+        return jax.jit(evaluate_jittable)
+    elif isinstance(env, EnvGymnasium):
+        return evaluate_non_jittable
+    else:
+        raise NotImplementedError
 
 
 
@@ -260,6 +290,11 @@ def train(
     key = jax.random.key(config.seed)
 
     env = environment
+    if isinstance(env, gymnasium.vector.VectorEnv):
+        validation_env = gymnasium.make(env.spec.id)
+    elif isinstance(env, EnvGymnax):
+        validation_env = env
+        
 
     actor_critic = policy_maker(env, env_params=env_params)
 
@@ -289,7 +324,7 @@ def train(
     # possible extension: batch normalization
     minibatch_step = minibatch_step_fn(gradient_update)
 
-    # a sgd step runs several minibatch steps
+    # a sgd step runs several updates over the same rollout
     sgd_step = sgd_step_fn(minibatch_step, config)
 
     # a training step takes one rollout, calculates advantages runs and several steps of sgd on it
@@ -307,10 +342,8 @@ def train(
     key_env, key_init_params, key_training, key_eval = jax.random.split(key, 4)
 
     if isinstance(env, EnvGymnax):
-
         reset_fn = jax.vmap(env.reset, in_axes=(0, None))
         key_envs = jax.random.split(key_env, config.num_envs)
-
         obs_v, env_state_v = reset_fn(key_envs, env_params)
 
     elif isinstance(env, gymnasium.vector.VectorEnv):
@@ -329,7 +362,10 @@ def train(
         optimizer.init(init_policy_params), init_policy_params, env_params
     )
 
-    evaluate = jax.jit(evaluate_fn(env, make_policy, 30, env_params))
+
+    evaluate = evaluate_fn(validation_env, make_policy, 30, env_params)
+    
+
     checkpoints = []
 
     print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
