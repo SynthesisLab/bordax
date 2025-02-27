@@ -1,6 +1,6 @@
 import lark
 
-from bordax.environments.utils import POMDP
+from bordax.environments.pomdp.utils import POMDP
 
 # This parses POMDP files. The formal specification is here:
 #

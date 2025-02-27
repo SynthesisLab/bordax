@@ -6,10 +6,10 @@ import numpy as np
 
 from gymnax.environments.environment import Environment as EnvGymnax
 from gymnasium import Env as EnvGymnasium
+from bordax.environments.pomdp.pomdp import BeliefWrapper
 import gymnasium
 
 from typing import Union, Callable, NamedTuple, Any
-
 
 Environment = Union[EnvGymnax, EnvGymnasium]
 
@@ -33,7 +33,7 @@ def generate_unroll(
     unroll_length: int,
     **kwargs,
 ):
-        if isinstance(env, EnvGymnax):
+        if isinstance(env, EnvGymnax) or isinstance(env, BeliefWrapper):
             env_params = kwargs["env_params"]
             num_envs = kwargs["num_envs"]
             step_v = jax.vmap(env.step, in_axes=(0, 0, 0, None))

@@ -1,36 +1,20 @@
-import flax.struct
-from typing import Callable, Sequence, List, Dict, Any
+from bordax.policies.utils import Policy, ActorCritic
+from bordax.environments.utils import Environment, EnvGymnax
+
+from bordax.policies.mlp import make_value_mlp
+
+import flax.linen as nn
 import jax.numpy as jnp
+import distrax
 import numpy as np
 
-from bordax.environments.utils import Environment, EnvGymnasium, EnvGymnax
+from bordax.environments.pomdp.pomdp import BeliefWrapper
 
 import gymnasium
 
-import flax
-import flax.linen as nn
-import distrax
+# dtsemnet : every node defines a hyperplane
 
-
-@flax.struct.dataclass
-class ActorCriticParams:
-    actor_params: Any
-    critic_params: Any
-
-@flax.struct.dataclass
-class Policy:
-    init: Callable[..., Any]
-    apply: Callable[..., Any]
-
-@flax.struct.dataclass
-class ActorCritic:
-    actor: Any
-    critic: Any
-
-ActorCriticMaker = Callable[[Environment, Dict[str, Any]], ActorCritic]
-
-
-class MLP_dtsemnet_value(nn.Module):
+class MLP_dtsemnet(nn.Module):
     tree_depth: int
     action_dim: int
 
@@ -74,66 +58,15 @@ class MLP_dtsemnet_value(nn.Module):
             if n_leaves % self.action_dim != 0:
                 appendice = jnp.zeros(((self.action_dim - (n_leaves % self.action_dim)), 2 * n_nodes))
                 tree_representation = jnp.concatenate((tree_representation, appendice), axis=0)
+            
             x = x @ tree_representation.T
 
-            # x = x.reshape((x.shape[0], -1, self.action_dim))
-            # x = x.max(axis=1)
+            x = x.reshape((x.shape[0], -1, self.action_dim))
+            x = x.max(axis=1)
 
             return x
-
-def policy_factory_mlp(actor_critic):
     
-    def make_policy(policy_params, deterministic=False):
-        policy_mlp = actor_critic.actor
-        def apply(obs, key):
-            pi: distrax.DistributionLike = policy_mlp.apply(policy_params, obs)
-            if deterministic:
-                return pi.mode(), {}
-            action, log_prob = pi.sample_and_log_prob(seed=key)
-            return action, {"log_prob": log_prob}
-        return apply
-    
-    def make_value(critic_params):
-        value_mlp = actor_critic.critic
-        def apply(obs):
-            return value_mlp.apply(critic_params, obs)
-        return apply
-
-    return make_policy, make_value
-
-
-
-def make_actor_critic_dtsemnet_value(env, **kwargs) -> ActorCritic:
-    if isinstance(env, EnvGymnax):
-        obs_space = env.observation_space(kwargs["env_params"])
-        obs_shape = obs_space.shape
-        action_dim = env.action_space(kwargs["env_params"]).n
-    else:
-        raise NotImplementedError
-    
-    module = MLP_dtsemnet_value(action_dim=action_dim, tree_depth=3)
-    def apply_policy(params, obs):
-        x = module.apply(params, obs)
-        x = x.reshape((x.shape[0], -1, action_dim))
-        x = x.max(axis=1)
-        pi = distrax.Categorical(logits=x)
-        return pi
-    
-    def apply_value(params, obs):
-        x = module.apply(params, obs)
-        x = x.min(axis=-1)
-        return jnp.array(x)
-
-    obs_size = obs_shape[0]
-    dummy_obs = jnp.zeros((1, obs_size))
-    policy = Policy(init=lambda key: module.init(key, dummy_obs), apply=apply_policy)
-    value = Policy(init=lambda key: module.init(key, dummy_obs), apply=apply_value)
-
-    return ActorCritic(actor=policy, critic=value)
-
-# add something over all leaves of dtsemnet
-
-def make_policy_dt_actions(
+def make_policy_dtsemnet(
     obs_shape,
     action_dim,
     tree_depth
@@ -148,16 +81,23 @@ def make_policy_dt_actions(
     dummy_obs = jnp.zeros((1, obs_size))
     return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
 
-def make_actor_critic_dt_actions(env, **kwargs) -> ActorCritic:
+def make_actor_critic_dtsemnet(env, **kwargs) -> ActorCritic:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
         action_dim = env.action_space(kwargs["env_params"]).n
+    elif isinstance(env, gymnasium.vector.VectorEnv):
+        obs_shape = env.observation_space.shape[1:]
+        action_dim = env.single_action_space.n
+    elif isinstance(env, BeliefWrapper):
+        obs_shape = env.observation_space.shape
+        action_dim = env.action_space.n
     else:
         raise NotImplementedError
 
     # tree_depth = kwargs["tree_depth"]
-    policy = make_policy_dt_actions(obs_shape, action_dim, 3)
+    policy = make_policy_dtsemnet(obs_shape, action_dim, 3)
     value = make_value_mlp(obs_shape)
 
     return ActorCritic(actor=policy, critic=value)
+

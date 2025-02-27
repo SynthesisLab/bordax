@@ -15,6 +15,7 @@ from functools import partial
 
 from gymnax.environments.environment import Environment as EnvGymnax
 from gymnasium import Env as EnvGymnasium
+from bordax.environments.pomdp.pomdp import BeliefWrapper
 
 import gymnasium
 
@@ -242,7 +243,7 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
             total_rewards.append(evaluate_one_episode(key))
         return total_rewards
 
-    if isinstance(env, EnvGymnax):
+    if isinstance(env, EnvGymnax) or isinstance(env, BeliefWrapper):
         return jax.jit(evaluate_jittable)
     elif isinstance(env, EnvGymnasium):
         return evaluate_non_jittable
@@ -292,6 +293,8 @@ def train(
     env = environment
     if isinstance(env, gymnasium.vector.VectorEnv):
         validation_env = gymnasium.make(env.spec.id)
+    elif isinstance(env, BeliefWrapper):
+        validation_env = env
     elif isinstance(env, EnvGymnax):
         validation_env = env
         
@@ -341,7 +344,7 @@ def train(
 
     key_env, key_init_params, key_training, key_eval = jax.random.split(key, 4)
 
-    if isinstance(env, EnvGymnax):
+    if isinstance(env, EnvGymnax) or isinstance(env, BeliefWrapper):
         reset_fn = jax.vmap(env.reset, in_axes=(0, None))
         key_envs = jax.random.split(key_env, config.num_envs)
         obs_v, env_state_v = reset_fn(key_envs, env_params)
@@ -365,14 +368,14 @@ def train(
 
     evaluate = evaluate_fn(validation_env, make_policy, 30, env_params)
     
+    print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
 
     checkpoints = []
-
-    print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
+    checkpoints.append(evaluate(key_eval, training_state.params))
 
     for it in range(config.num_checkpoints):
         # training epochs
-        for _ in range(config.epochs_per_checkpoint):
+        for i in range(config.epochs_per_checkpoint):
             training_state, obs_v, env_state_v, metrics = training_epoch(
                 training_state, obs_v, env_state_v, key_training
             )

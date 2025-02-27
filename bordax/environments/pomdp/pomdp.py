@@ -1,3 +1,4 @@
+import gymnax.environments.spaces
 import gymnax.utils
 import jax
 import jax.numpy as jnp
@@ -20,6 +21,9 @@ class jPOMDP(gymnax.environments.environment.Environment):
         self.n_states = len(self.states)
         self.n_actions = len(self.actions)
         self.n_obs = len(self.obs)
+
+        self.action_space = gymnax.environments.spaces.Discrete(self.n_obs)
+        self.observation_space = gymnax.environments.spaces.Discrete(self.n_obs)
         
         self.state_to_index = {}
         self.action_to_index = {}
@@ -63,11 +67,11 @@ class jPOMDP(gymnax.environments.environment.Environment):
         distr = distrax.Categorical(probs=self.obs_fun[0, state])
         obs = distr.sample(seed=obs_key)
         
-        return obs, state
+        return obs, (state, 0)
     
     @partial(jax.jit, static_argnums=(0,))
     def step(self, key, state, action, params):
-        distr = distrax.Categorical(probs = self.transitions[state][action])
+        distr = distrax.Categorical(probs = self.transitions[state[0]][action])
 
         state_key, obs_key = jax.random.split(key)
 
@@ -76,11 +80,17 @@ class jPOMDP(gymnax.environments.environment.Environment):
         distr = distrax.Categorical(probs = self.obs_fun[action][new_state])
         obs = distr.sample(seed=obs_key)
 
-        reward = self.reward[(action, state)]
+        reward = self.reward[(action, state[0])]
 
-        done = False
+        new_state = (new_state, state[1] + 1)
 
-        return obs, new_state, reward, done
+        done = new_state[1] >= params["cutoff"]
+
+        return obs, new_state, reward, done, {}
+
+    @partial(jax.jit, static_argnums=(0,))
+    def is_terminal(self, state, params):
+        return state[1] >= params["cutoff"]
 
 class GymnaxWrapper(object):
     """Base class for Gymnax wrappers."""
@@ -96,6 +106,8 @@ class BeliefWrapper(GymnaxWrapper):
     def __init__(self, env: jPOMDP):
         super().__init__(env)
         self._env = env
+
+        self.observation_space = gymnax.environments.spaces.Box(low=0, high=1, shape=(self._env.n_states,), dtype=jnp.float32)
 
         self.start_belief = jnp.zeros((self._env.n_states))
         for s in self._env.state_to_index.values():
@@ -123,7 +135,7 @@ class BeliefWrapper(GymnaxWrapper):
     @partial(jax.jit, static_argnums=(0,))
     def step(self, key, state, action, params):
         current_belief, state = state
-        obs, new_state, reward, done = self._env.step(key, state, action, params)
+        obs, new_state, reward, done, _ = self._env.step(key, state, action, params)
         new_belief = self._belief(obs, action, current_belief)
         return new_belief, (new_belief, new_state), reward, done, {"signal": obs}
     
