@@ -62,15 +62,20 @@ def generate_unroll(
             obs = init_obs
 
             for i in range(unroll_length):
-                action, policy_info = policy(obs, key)
+                action_key, key = jax.random.split(key, 2)
+                action, policy_info = policy(obs, action_key)
                 n_obs, reward, terminated, truncated, _ = env.step(np.asarray(action))
                 done = terminated | truncated
                 transition = Transition(done, action, reward, policy_info["log_prob"], obs, jnp.zeros_like(n_obs))
                 obs = n_obs
                 traj_batch.append(transition)
 
-            traj_batch = jax.tree_map(lambda *args: jnp.stack(args, axis=0), *traj_batch)
+            traj_batch = transform_batch(traj_batch)
             return (n_obs, []), traj_batch
 
         else:
             raise NotImplementedError
+        
+@jax.jit
+def transform_batch(traj_batch):
+    return jax.tree_map(lambda *args: jnp.stack(args, axis=0), *traj_batch)

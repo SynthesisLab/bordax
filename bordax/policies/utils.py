@@ -186,8 +186,7 @@ def policy_factory_mlp(actor_critic):
             pi: distrax.DistributionLike = policy_mlp.apply(policy_params, obs)
             if deterministic:
                 return pi.mode(), {}
-            action = pi.sample(seed=key)
-            log_prob = pi.log_prob(action)
+            action, log_prob = pi.sample_and_log_prob(seed=key)
             return action, {"log_prob": log_prob}
         return apply
     
@@ -237,8 +236,8 @@ def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
         action_dim = env.action_space(kwargs["env_params"]).n
     elif isinstance(env, gymnasium.vector.VectorEnv):
         obs_shape = env.observation_space.shape[1:]
-        action_dim = env.action_space.shape[0]
-    
+        action_dim = env.single_action_space.n
+     
     else:
         raise NotImplementedError
 

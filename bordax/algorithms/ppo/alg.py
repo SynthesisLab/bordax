@@ -122,13 +122,12 @@ def training_step_fn(
 ):
  
     def training_step(carry, _):
-
         training_state, obs, state, key = carry
         key_sgd, key_generate_unroll, key = jax.random.split(key, 3)
 
         # reconstruct the policy from the parameters
-        policy = make_policy(training_state.params.actor_params)
-        value = make_value(training_state.params.critic_params)
+        policy = jax.jit(make_policy(training_state.params.actor_params))
+        value = jax.jit(make_value(training_state.params.critic_params))
 
         # collect the data for the batch
         (last_obs, last_state), data = generate_unroll(key_generate_unroll, 
@@ -220,26 +219,27 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
     
     # evaluation of a non-jittable gymnasium environment
     def evaluate_non_jittable(key, params):
-        policy = make_policy(params.actor_params, deterministic=True)
+        policy = jax.jit(make_policy(params.actor_params, deterministic=True))
 
-        def evaluate_one_episode(seed):
+        def evaluate_one_episode(key):
+            seed = jax.random.randint(key, (), 0, 2**8).item()
             obs, _ = env.reset(seed=seed)
             total_reward = 0.0
             done = False
-            truncated = False
-            while not done and not truncated:
-                action, _ = policy(jnp.array(obs), seed)
-                obs, reward, done, truncated, info = env.step(action.item())
-                total_reward += reward
 
+            while not done:
+                action, _ = policy(obs, seed)
+                obs, reward, terminated, truncated, info = env.step(action.item())
+                done = terminated | truncated
+                total_reward += reward
             return total_reward
+        
         total_rewards = []
         
         # get the seeds from the key
         keys = jax.random.split(key, n_envs)
         for key in keys:
-            seed = jax.random.randint(key, (), 0, 2**8).item()
-            total_rewards.append(evaluate_one_episode(seed))
+            total_rewards.append(evaluate_one_episode(key))
         return total_rewards
 
     if isinstance(env, EnvGymnax):
