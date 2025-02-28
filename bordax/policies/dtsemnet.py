@@ -87,7 +87,7 @@ def make_actor_critic_dtsemnet(env, **kwargs) -> ActorCritic:
         obs_shape = obs_space.shape
         action_dim = env.action_space(kwargs["env_params"]).n
     elif isinstance(env, gymnasium.vector.VectorEnv):
-        obs_shape = env.observation_space.shape[1:]
+        obs_shape = env.single_observation_space.shape
         action_dim = env.single_action_space.n
     elif isinstance(env, BeliefWrapper):
         obs_shape = env.observation_space.shape
@@ -96,7 +96,7 @@ def make_actor_critic_dtsemnet(env, **kwargs) -> ActorCritic:
         raise NotImplementedError
 
     # tree_depth = kwargs["tree_depth"]
-    policy = make_policy_dtsemnet(obs_shape, action_dim, 3)
+    policy = make_policy_dtsemnet(obs_shape, action_dim, 5)
     value = make_value_mlp(obs_shape)
 
     return ActorCritic(actor=policy, critic=value)

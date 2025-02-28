@@ -1,5 +1,6 @@
 import flax.struct
 from typing import Callable, Sequence, List, Dict, Any
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -101,6 +102,34 @@ def policy_factory_mlp(actor_critic):
 
     return make_policy, make_value
 
+@jax.jit
+def epsilon_greedy_exploration(key, q_vals, eps):
+        key_action, key_epsilon = jax.random.split(key)
+        greedy_actions = jnp.argmax(q_vals, axis=-1)
+        chosed_actions = jnp.where(
+            jax.random.uniform(key_epsilon, greedy_actions.shape) < eps,
+            jax.random.randint(
+                key_action,
+                shape=greedy_actions.shape,
+                minval=0,
+                maxval=q_vals.shape[-1],
+            ),
+            greedy_actions,
+        )
+        return chosed_actions
+
+def q_function_factory(actor):
+    def make_q_function(params, deterministic=False):
+        def apply(obs, key, epsilon):
+            q_vals = actor.apply(params, obs)
+            if deterministic:
+                return jnp.argmax(actor.apply(params, obs), axis=-1)
+            
+            action = epsilon_greedy_exploration(key, q_vals, epsilon)
+
+            return action
+        return apply
+    return make_q_function
 
 
 def make_actor_critic_dtsemnet_value(env, **kwargs) -> ActorCritic:

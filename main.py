@@ -3,45 +3,44 @@ import gymnax
 import jax.numpy as jnp
 from matplotlib import pyplot as plt
 import numpy as np
-from bordax.policies.utils import (
-    policy_factory_mlp,
-    make_actor_critic_mlp,
-    make_actor_critic_dtsemnet,
-    make_actor_critic_boolean,
-)
+from bordax.policies.utils import policy_factory_mlp
+from bordax.policies.mlp import make_actor_critic_mlp
+from bordax.policies.dtsemnet import make_actor_critic_dtsemnet
+from bordax.policies.boolean import make_actor_critic_boolean
+
 from bordax.algorithms.ppo.alg import train, PPOConfig
 
-
+import os
 import time
 
 
 if __name__ == "__main__":
     flag = True
     if flag:
-        env = gymnasium.make_vec("CartPole-v1", num_envs=1, vectorization_mode="sync", vector_kwargs={"autoreset_mode": "NextStep"})
+        env = gymnasium.make_vec("LunarLander-v3", num_envs=1, vectorization_mode="sync", vector_kwargs={"autoreset_mode": "NextStep"})
         env_params = {}
     else:
         env, env_params = gymnax.make("CartPole-v1")
 
     results = []
 
-    architectures = [make_actor_critic_mlp]
+    architectures = [make_actor_critic_dtsemnet]
 
     for architecture in architectures:
-        for seed in range(1):
+        for seed in range(5):
             start_time = time.time()
             config = PPOConfig(
                 learning_rate=2.4e-3,
-                num_checkpoints=200,          # number of evaluations
-                epochs_per_checkpoint=1,    # number of epochs between evaluations
-                unroll_length=832,         # length of the experience buffer
-                sgd_steps=1,                # num of sgd passes through the same experience buffer
+                num_checkpoints=500,          # number of evaluations
+                epochs_per_checkpoint=10,    # number of epochs between evaluations
+                unroll_length=1024,         # length of the experience buffer
+                sgd_steps=4,                # num of sgd passes through the same experience buffer
                 epoch_steps=1,            # num of training steps per epoch
-                num_minibatches=26,          # num of minibatches for each sgd pass
+                num_minibatches=16,          # num of minibatches for each sgd pass
                 num_envs=1,                 # num of parallel environments
                 seed=seed,
                 epsilon=0.2,
-                gamma=0.99,
+                gamma=0.999,
                 vf_coef=0.5,
                 entropy_coef=0.01,
                 gae_lambda=0.98,
@@ -57,19 +56,14 @@ if __name__ == "__main__":
                 "architecture": architecture.__name__,
                 "seed": seed,
                 "training_time": end_time - start_time,
-                "checkpoints": checkpoints
+                "checkpoints": checkpoints,
+                "average": jnp.mean(checkpoints, axis=1)
             })
             print(f"Seed {seed} took {end_time - start_time} seconds")
-
-    for result in results:
-        result["average"] = jnp.mean(result["checkpoints"], axis=1)
-
-    # save averages to a txt file
-    for result in results:
-
-        rew = np.array(result["average"])
-
-        reward_fp = f'logs/gym/'
-        fn = f"{reward_fp}seed{result["seed"]}_rewards.txt"
-        with open(fn, "w") as file:
-            np.savetxt(fn, rew, fmt='%.1f')
+            
+            reward_fp = f'logs/lunarlander/{architecture.__name__}'
+            if not os.path.exists(reward_fp):
+                os.makedirs(reward_fp)
+            fn = f"{reward_fp}seed{seed}_rewards.txt"
+            with open(fn, "w") as file:
+                np.savetxt(fn, jnp.mean(checkpoints, axis=1), fmt='%.1f')

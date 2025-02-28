@@ -20,12 +20,7 @@ from bordax.environments.pomdp.pomdp import BeliefWrapper
 import gymnasium
 
 import time
-
-# TODO list:
-# [ ] generic class for policies (not only NNs)
-#   [ ] dtsemnet
-#   [ ] dtsemnet-light
-# [ ] non-jittable environments
+from tqdm import trange
 
 PolicyParams = Any
 
@@ -366,14 +361,19 @@ def train(
     )
 
 
-    evaluate = evaluate_fn(validation_env, make_policy, 30, env_params)
+    evaluate = evaluate_fn(validation_env, make_policy, 5, env_params)
     
     print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
 
     checkpoints = []
     checkpoints.append(evaluate(key_eval, training_state.params))
 
-    for it in range(config.num_checkpoints):
+    if config.debug:
+        iterator = trange(config.num_checkpoints, desc="Checkpoints")
+    else:
+        iterator = range(config.num_checkpoints)
+
+    for it in iterator:
         # training epochs
         for i in range(config.epochs_per_checkpoint):
             training_state, obs_v, env_state_v, metrics = training_epoch(
