@@ -45,12 +45,12 @@ class PPOConfig(NamedTuple):
     debug: bool
     env_jitable: bool
 
+
 @flax.struct.dataclass
 class TrainingState:
     optimizer_state: optax.OptState
     params: ActorCriticParams
     env_params: Any
-
 
 
 def gradient_update_fn(
@@ -81,7 +81,7 @@ def minibatch_step_fn(gradient_update_fn):
     return jax.jit(minibatch_step)
 
 
-def sgd_step_fn(minibatch_step, config:PPOConfig):
+def sgd_step_fn(minibatch_step, config: PPOConfig):
     def sgd_step(carry, _, data):
         optimizer_state, params, key = carry
         key, key_perm, key_grad = jax.random.split(key, 3)
@@ -89,18 +89,19 @@ def sgd_step_fn(minibatch_step, config:PPOConfig):
         # flatten the batch from several environments
         batch_size = config.unroll_length * config.num_envs
         batch = jax.tree_util.tree_map(
-                    lambda x: x.reshape((batch_size,) + x.shape[2:]), data
-                )
+            lambda x: x.reshape((batch_size,) + x.shape[2:]), data
+        )
         # shuffling
         permutation = jax.random.permutation(key_perm, batch_size)
         shuffled_batch = jax.tree_util.tree_map(
-                    lambda x: jnp.take(x, permutation, axis=0), batch
-                )
-        
+            lambda x: jnp.take(x, permutation, axis=0), batch
+        )
+
         # minibatches
         minibatches = jax.tree_util.tree_map(
-                    lambda x: x.reshape((config.num_minibatches, -1) + x.shape[1:]), shuffled_batch
-                )
+            lambda x: x.reshape((config.num_minibatches, -1) + x.shape[1:]),
+            shuffled_batch,
+        )
 
         # do sgd
         (optimizer_state, params, _), metrics = jax.lax.scan(
@@ -113,10 +114,9 @@ def sgd_step_fn(minibatch_step, config:PPOConfig):
 
     return jax.jit(sgd_step)
 
-def training_step_fn(
-    env, make_policy, make_value, sgd_step, config: PPOConfig
-):
- 
+
+def training_step_fn(env, make_policy, make_value, sgd_step, config: PPOConfig):
+
     def training_step(carry, _):
         training_state, obs, state, key = carry
         key_sgd, key_generate_unroll, key = jax.random.split(key, 3)
@@ -126,22 +126,25 @@ def training_step_fn(
         value = jax.jit(make_value(training_state.params.critic_params))
 
         # collect the data for the batch
-        (last_obs, last_state), data = generate_unroll(key_generate_unroll, 
-                                                    env, 
-                                                    policy, 
-                                                    obs, 
-                                                    state, 
-                                                    config.unroll_length, 
-                                                    env_params=training_state.env_params, 
-                                                    num_envs=config.num_envs)
-
+        (last_obs, last_state), data = generate_unroll(
+            key_generate_unroll,
+            env,
+            policy,
+            obs,
+            state,
+            config.unroll_length,
+            env_params=training_state.env_params,
+            num_envs=config.num_envs,
+        )
 
         # calculate values (baseline)
         values = value(data.obs)
         last_value = value(last_obs)
 
         # calculate advantages
-        advantages, targets = compute_gae(data, last_value, values, config.gamma, config.gae_lambda)
+        advantages, targets = compute_gae(
+            data, last_value, values, config.gamma, config.gae_lambda
+        )
         batch = (data, advantages, targets)
 
         # perform gradient descent
@@ -164,7 +167,8 @@ def training_step_fn(
 
 def training_epoch_fn(training_step, config: PPOConfig):
 
-    if config.env_jitable:    
+    if config.env_jitable:
+
         def training_epoch(training_state, obs, state, key):
             (training_state, obs, state, key), metrics = jax.lax.scan(
                 training_step,
@@ -174,7 +178,9 @@ def training_epoch_fn(training_step, config: PPOConfig):
             )
 
             return training_state, obs, state, metrics
+
     else:
+
         def training_epoch(training_state, obs, state, key):
             for _ in range(config.epoch_steps):
                 (training_state, obs, state, key), metrics = training_step(
@@ -184,6 +190,7 @@ def training_epoch_fn(training_step, config: PPOConfig):
             return training_state, obs, state, metrics
 
     return training_epoch
+
 
 def evaluate_fn(env, make_policy, n_envs, env_params):
     # evaluation of a jittable environment, for example gymnax
@@ -198,21 +205,25 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
                 action, _ = policy(obs, key)
                 if len(action.shape) > 0:
                     action = jnp.squeeze(action, axis=-1)
-                n_obs, n_state, reward, done, _ = env.step(key, state, action, env_params)
+                n_obs, n_state, reward, done, _ = env.step(
+                    key, state, action, env_params
+                )
                 return n_obs, n_state, total_reward + reward, done
-            
+
             def cond(carry):
                 obs, state, total_reward, done = carry
                 return jnp.logical_not(done)
 
-            _, _, total_reward, _ = jax.lax.while_loop(cond, step, (obs, env_state, 0.0, False))
+            _, _, total_reward, _ = jax.lax.while_loop(
+                cond, step, (obs, env_state, 0.0, False)
+            )
 
             return total_reward
 
         key_v = jax.random.split(key, n_envs)
         total_rewards = jax.vmap(evaluate_one_episode)(key_v)
         return total_rewards
-    
+
     # evaluation of a non-jittable gymnasium environment
     def evaluate_non_jittable(key, params):
         policy = jax.jit(make_policy(params.actor_params, deterministic=True))
@@ -229,9 +240,9 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
                 done = terminated | truncated
                 total_reward += reward
             return total_reward
-        
+
         total_rewards = []
-        
+
         # get the seeds from the key
         keys = jax.random.split(key, n_envs)
         for key in keys:
@@ -246,7 +257,6 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
         raise NotImplementedError
 
 
-
 def train(
     environment: EnvGymnax,
     env_params: Dict,
@@ -254,13 +264,13 @@ def train(
     make_inference_fn,
     config: PPOConfig = PPOConfig(
         learning_rate=2.5e-3,
-        num_checkpoints=150,          # number of evaluations
-        epochs_per_checkpoint=1,    # number of epochs between evaluations
-        unroll_length=1024,         # length of the experience buffer
-        sgd_steps=4,                # num of sgd passes through the same experience buffer
-        epoch_steps=4,            # num of training steps per epoch
-        num_minibatches=4,          # num of minibatches for each sgd pass
-        num_envs=1,                 # num of parallel environments
+        num_checkpoints=150,  # number of evaluations
+        epochs_per_checkpoint=1,  # number of epochs between evaluations
+        unroll_length=1024,  # length of the experience buffer
+        sgd_steps=4,  # num of sgd passes through the same experience buffer
+        epoch_steps=4,  # num of training steps per epoch
+        num_minibatches=4,  # num of minibatches for each sgd pass
+        num_envs=1,  # num of parallel environments
         seed=0,
         epsilon=0.2,
         gamma=0.99,
@@ -270,7 +280,7 @@ def train(
         normalize_advantage=True,
         max_grad_norm=0.5,
         debug=True,
-        env_jitable=True
+        env_jitable=True,
     ),
 ):
     if config.debug:
@@ -280,7 +290,7 @@ def train(
             print("Environment: ", environment.spec.id)
         else:
             print("Environment: ", environment.name)
-        print("Seed: ", config.seed) 
+        print("Seed: ", config.seed)
 
     # parallelization!
     key = jax.random.key(config.seed)
@@ -292,7 +302,6 @@ def train(
         validation_env = env
     elif isinstance(env, EnvGymnax):
         validation_env = env
-        
 
     actor_critic = policy_maker(env, env_params=env_params)
 
@@ -301,7 +310,9 @@ def train(
     optimizer = optax.adam(config.learning_rate)
 
     if config.max_grad_norm is not None:
-        optimizer = optax.chain(optax.clip_by_global_norm(config.max_grad_norm), optimizer)
+        optimizer = optax.chain(
+            optax.clip_by_global_norm(config.max_grad_norm), optimizer
+        )
 
     loss_fn = partial(
         compute_loss_fn,
@@ -326,9 +337,7 @@ def train(
     sgd_step = sgd_step_fn(minibatch_step, config)
 
     # a training step takes one rollout, calculates advantages runs and several steps of sgd on it
-    training_step = training_step_fn(
-        env, make_policy, make_value, sgd_step, config
-    )
+    training_step = training_step_fn(env, make_policy, make_value, sgd_step, config)
 
     # an epoch consists of several training steps
     training_epoch = training_epoch_fn(training_step, config)
@@ -360,10 +369,16 @@ def train(
         optimizer.init(init_policy_params), init_policy_params, env_params
     )
 
-
     evaluate = evaluate_fn(validation_env, make_policy, 30, env_params)
-    
-    print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
+
+    print(
+        "Total number of timesteps: ",
+        config.num_checkpoints
+        * config.epochs_per_checkpoint
+        * config.epoch_steps
+        * config.num_envs
+        * config.unroll_length,
+    )
 
     checkpoints = []
     checkpoints.append(evaluate(key_eval, training_state.params))

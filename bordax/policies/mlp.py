@@ -18,6 +18,7 @@ import distrax
 
 # standard mlp actor-critic
 
+
 class MLP(nn.Module):
     layer_sizes: List[int]
 
@@ -32,7 +33,7 @@ class MLP(nn.Module):
             x = layer(x)
             x = nn.relu(x)
         return self.dense_layers[-1](x)
-    
+
 
 def make_policy_mlp(
     obs_shape,
@@ -57,11 +58,12 @@ def make_value_mlp(
     value_module = MLP(layer_sizes=list(hidden_layer_sizes) + [1])
 
     def apply(value_params, obs):
-        return jnp.squeeze(value_module.apply(value_params, obs),axis=-1)
+        return jnp.squeeze(value_module.apply(value_params, obs), axis=-1)
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
     return Policy(init=lambda key: value_module.init(key, dummy_obs), apply=apply)
+
 
 def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
     if isinstance(env, EnvGymnax):
@@ -74,7 +76,7 @@ def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
     elif isinstance(env, BeliefWrapper):
         obs_shape = env.observation_space.shape
         action_dim = env.action_space.n
-     
+
     else:
         raise NotImplementedError
 
@@ -82,6 +84,7 @@ def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
     value = make_value_mlp(obs_shape)
 
     return ActorCritic(actor=policy, critic=value)
+
 
 def make_q_mlp(env, **kwargs):
     if isinstance(env, EnvGymnax):
@@ -94,7 +97,7 @@ def make_q_mlp(env, **kwargs):
     elif isinstance(env, BeliefWrapper):
         obs_shape = env.observation_space.shape
         action_dim = env.action_space.n
-     
+
     else:
         raise NotImplementedError
 

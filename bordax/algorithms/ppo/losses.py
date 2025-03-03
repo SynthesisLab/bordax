@@ -4,18 +4,18 @@ from bordax.policies.utils import ActorCritic
 
 
 def compute_loss_fn(
-    params,     # policy parameters
-    batch,      # rollout
-    actor_critic: ActorCritic,          #
-    epsilon: float,                     #
-    vf_coef: float = 0.5,               # these are fixed for the whole training process
-    entropy_coef: float = 1e-4,         #
-    normalize_advantage: bool = True,   #
+    params,  # policy parameters
+    batch,  # rollout
+    actor_critic: ActorCritic,  #
+    epsilon: float,  #
+    vf_coef: float = 0.5,  # these are fixed for the whole training process
+    entropy_coef: float = 1e-4,  #
+    normalize_advantage: bool = True,  #
 ):
 
     actor = actor_critic.actor
     critic = actor_critic.critic
-    
+
     (rollout, advantages, targets) = batch
 
     pi = actor.apply(params.actor_params, rollout.obs)

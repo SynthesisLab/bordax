@@ -14,6 +14,7 @@ import gymnasium
 
 # n hyperplanes, boolean combinations for up to 2^n regions
 
+
 class MLP_boolean(nn.Module):
     n: int
     action_dim: int
@@ -43,10 +44,14 @@ class MLP_boolean(nn.Module):
         )
         function_representation = jnp.array(function_representation)
 
-        if 2**self.n % self.action_dim !=0:
-            appendice = jnp.zeros(((self.action_dim - (2**self.n % self.action_dim)), self.n))
-            function_representation = jnp.concatenate((function_representation, appendice), axis=0)
-        
+        if 2**self.n % self.action_dim != 0:
+            appendice = jnp.zeros(
+                ((self.action_dim - (2**self.n % self.action_dim)), self.n)
+            )
+            function_representation = jnp.concatenate(
+                (function_representation, appendice), axis=0
+            )
+
         x = x @ function_representation.T
 
         x = x.reshape((x.shape[0], -1, self.action_dim))
@@ -65,6 +70,7 @@ def make_policy_boolean(obs_shape, action_dim, n):
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
     return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
+
 
 def make_actor_critic_boolean(env, **kwargs) -> ActorCritic:
     if isinstance(env, EnvGymnax):
@@ -101,7 +107,7 @@ class MLP_boolean_feature(nn.Module):
 
         x = jnp.concatenate([x, x**2], axis=1)
 
-        x = jnp.einsum('b i, i j -> b j', x, self.W[0])
+        x = jnp.einsum("b i, i j -> b j", x, self.W[0])
         x = x + self.c
 
         numbers = np.arange(2**self.n)
@@ -115,10 +121,13 @@ class MLP_boolean_feature(nn.Module):
         )
         function_representation = jnp.array(function_representation)
 
-        if 2**self.n % self.action_dim !=0:
-            appendice = jnp.zeros(((self.action_dim - (2**self.n % self.action_dim)), self.n))
-            function_representation = jnp.concatenate((function_representation, appendice), axis=0)
-        
+        if 2**self.n % self.action_dim != 0:
+            appendice = jnp.zeros(
+                ((self.action_dim - (2**self.n % self.action_dim)), self.n)
+            )
+            function_representation = jnp.concatenate(
+                (function_representation, appendice), axis=0
+            )
 
         x = x @ function_representation.T
 
