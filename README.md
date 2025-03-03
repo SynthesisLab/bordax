@@ -16,18 +16,17 @@ It enables efficient training and evaluation of **structured policies**, includi
 
 ---
 
-## Installation
+## Usage
 
-BordAX requires **Python 3.12+**. You can install it via:
+BordAX requires **Python 3.12+**. You can install the dependencies it via:
 
 ```bash
 git clone https://github.com/your-org/bordax.git
 cd bordax
-pip install -e .
+pip install -r requirements.txt 
 ```
 
----
-
-## Usage
-
-In order to run the CartPole experiments presented in the paper, run `python ./test.py`
+In order to run the CartPole experiments presented in the paper, run 
+```
+python ./test.py
+```
