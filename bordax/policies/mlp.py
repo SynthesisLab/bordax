@@ -37,7 +37,7 @@ class MLP(nn.Module):
 def make_policy_mlp(
     obs_shape,
     action_dim,
-    hidden_layer_sizes: Sequence[int] = (10, 10),
+    hidden_layer_sizes: Sequence[int] = (10,),
 ):
     policy_module = MLP(layer_sizes=list(hidden_layer_sizes) + [action_dim])
 

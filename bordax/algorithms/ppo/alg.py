@@ -361,7 +361,7 @@ def train(
     )
 
 
-    evaluate = evaluate_fn(validation_env, make_policy, 5, env_params)
+    evaluate = evaluate_fn(validation_env, make_policy, 30, env_params)
     
     print("Total number of timesteps: ", config.num_checkpoints * config.epochs_per_checkpoint * config.epoch_steps * config.num_envs * config.unroll_length)
 

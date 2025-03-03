@@ -1,5 +1,33 @@
-# bordax
+# BordAX: A JAX-Based Framework for Programmatic Reinforcement Learning
 
-run `python -m bordax.test` to see some results
+BordAX is a **high-performance, JAX-based framework** for **Programmatic Reinforcement Learning (PRL)**.  
+It enables efficient training and evaluation of **structured policies**, including:
+- **HyperBool**: A boolean function-based policy representation.
+- **DTSemNet**: A decision tree model.
 
-Picture: ![image](imgs/Figure_1.png)
+
+---
+
+## Features
+- **Fast training**: Achieves a *97× speed-up* compared to PyTorch-based implementations.
+- **Modular architecture**: Decouples *policy representations, environments, and learning algorithms*, allowing easy integration of new policies and learning algorithms.
+- **Programmatic policy support**: Implements *boolean function-based policies* and *differentiable decision trees*.
+- **JAX-native**: Built with *Flax* for neural networks and *Gymnax* and *Gymnasium* for reinforcement learning environments.
+
+---
+
+## Installation
+
+BordAX requires **Python 3.12+**. You can install it via:
+
+```bash
+git clone https://github.com/your-org/bordax.git
+cd bordax
+pip install -e .
+```
+
+---
+
+## Usage
+
+In order to run the CartPole experiments presented in the paper, run `python ./test.py`
