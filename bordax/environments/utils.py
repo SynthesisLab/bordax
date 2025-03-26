@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import flax
+from distrax import DistributionLike
 
 import numpy as np
 
@@ -9,7 +10,8 @@ from gymnasium import Env as EnvGymnasium
 from bordax.environments.pomdp.pomdp import BeliefWrapper
 import gymnasium
 
-from typing import Union, Callable, NamedTuple, Any
+from typing import Union, Callable, NamedTuple, Any, Tuple
+
 
 Environment = Union[EnvGymnax, EnvGymnasium]
 
@@ -28,7 +30,7 @@ class Transition(NamedTuple):
 def generate_unroll(
     key: flax.typing.PRNGKey,
     env,
-    policy: Callable[[Any, flax.typing.PRNGKey], Any],
+    policy: Callable[[Any, flax.typing.PRNGKey], Tuple[DistributionLike, Any]],
     init_obs: Any,
     init_state: EnvState,
     unroll_length: int,

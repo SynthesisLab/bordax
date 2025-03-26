@@ -5,12 +5,12 @@ from jax import numpy as jnp
 import optax
 import flax
 
-from bordax.algorithms.ppo.losses import compute_loss_fn
+from bordax.algorithms.ppo.losses import ppo_loss
 from bordax.algorithms.utils import compute_gae
 from bordax.policies.utils import ActorCriticMaker, ActorCriticParams
 from bordax.environments.utils import generate_unroll
 
-from typing import Any, Dict, NamedTuple, Callable
+from typing import Any, Dict, NamedTuple, Callable, Union
 from functools import partial
 
 from gymnax.environments.environment import Environment as EnvGymnax
@@ -258,7 +258,7 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
 
 
 def train(
-    environment: EnvGymnax,
+    environment: Union[EnvGymnax, EnvGymnasium],
     env_params: Dict,
     policy_maker: ActorCriticMaker,
     make_inference_fn,
@@ -315,7 +315,7 @@ def train(
         )
 
     loss_fn = partial(
-        compute_loss_fn,
+        ppo_loss,
         actor_critic=actor_critic,
         epsilon=config.epsilon,
         vf_coef=config.vf_coef,
@@ -364,12 +364,14 @@ def train(
         actor_critic.actor.init(key_actor),
         actor_critic.critic.init(key_critic),
     )
+    if config.debug:
+        print(jax.tree_map(lambda l: l.shape, init_policy_params.actor_params))
 
     training_state = TrainingState(
         optimizer.init(init_policy_params), init_policy_params, env_params
     )
 
-    evaluate = evaluate_fn(validation_env, make_policy, 30, env_params)
+    evaluate = evaluate_fn(validation_env, make_policy, 1, env_params)
 
     print(
         "Total number of timesteps: ",

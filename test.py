@@ -1,8 +1,10 @@
 import gymnax
+import gymnasium as gym
 import jax.numpy as jnp
 import numpy as np
 from bordax.policies.utils import policy_factory_mlp
 from bordax.policies.mlp import make_actor_critic_mlp
+# from bordax.policies.forced_mlp import make_actor_critic_mlp
 from bordax.policies.dtsemnet import (
     make_actor_critic_dtsemnet,
     make_actor_critic_dtsemnet_feature,
@@ -20,20 +22,22 @@ from tqdm import trange
 
 if __name__ == "__main__":
     env, env_params = gymnax.make("CartPole-v1")
+    # env= gym.make_vec("LunarLander-v3")
+    # env_params = {}
 
     results = []
 
     architectures = [
-        make_actor_critic_boolean_feature,
-        make_actor_critic_dtsemnet_feature,
-        make_actor_critic_boolean,
-        make_actor_critic_dtsemnet,
+        # make_actor_critic_boolean_feature,
+        # make_actor_critic_dtsemnet_feature,
+        # make_actor_critic_boolean,
+        # make_actor_critic_dtsemnet,
         make_actor_critic_mlp,
     ]
 
     for architecture in architectures:
 
-        n_seeds = 30
+        n_seeds = 1
         init_seed = 800
         iterator = trange(n_seeds, desc="Seeds")
 
@@ -56,7 +60,7 @@ if __name__ == "__main__":
                 gae_lambda=0.85,
                 normalize_advantage=True,
                 max_grad_norm=0.5,
-                debug=False,
+                debug=True,
                 env_jitable=True,
             )
             training_state, checkpoints = train(
@@ -76,7 +80,7 @@ if __name__ == "__main__":
             )
 
             print(f"Seed {seed} took {end_time - start_time} seconds")
-
+            # print(info)
             reward_fp = f"logs/cart_pole/{architecture.__name__}/"
             if not os.path.exists(reward_fp):
                 os.makedirs(reward_fp)

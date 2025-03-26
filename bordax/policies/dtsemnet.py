@@ -85,7 +85,7 @@ def make_policy_dtsemnet(obs_shape, action_dim, tree_depth):
 
     def apply(policy_params, obs):
         pi = distrax.Categorical(logits=policy_module.apply(policy_params, obs))
-        return pi
+        return pi, {}
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
