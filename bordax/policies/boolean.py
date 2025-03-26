@@ -1,4 +1,4 @@
-from bordax.policies.utils import Policy, ActorCritic
+from bordax.policies.utils import Policy, PolicyValue
 from bordax.environments.utils import Environment, EnvGymnax
 
 from bordax.policies.mlp import make_value_mlp
@@ -72,7 +72,7 @@ def make_policy_boolean(obs_shape, action_dim, n):
     return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
 
 
-def make_actor_critic_boolean(env, **kwargs) -> ActorCritic:
+def make_policy_value_boolean(env, **kwargs) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -89,7 +89,7 @@ def make_actor_critic_boolean(env, **kwargs) -> ActorCritic:
     policy = make_policy_boolean(obs_shape, action_dim, 8)
     value = make_value_mlp(obs_shape)
 
-    return ActorCritic(actor=policy, critic=value)
+    return PolicyValue(policy=policy, value=value)
 
 
 class MLP_boolean_feature(nn.Module):
@@ -149,7 +149,7 @@ def make_policy_boolean_feature(obs_shape, action_dim, n):
     return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
 
 
-def make_actor_critic_boolean_feature(env, **kwargs) -> ActorCritic:
+def make_policy_value_boolean_feature(env, **kwargs) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -166,4 +166,4 @@ def make_actor_critic_boolean_feature(env, **kwargs) -> ActorCritic:
     policy = make_policy_boolean_feature(obs_shape, action_dim, 8)
     value = make_value_mlp(obs_shape)
 
-    return ActorCritic(actor=policy, critic=value)
+    return PolicyValue(policy=policy, value=value)

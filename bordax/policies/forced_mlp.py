@@ -5,7 +5,7 @@ import numpy as np
 
 from bordax.environments.utils import Environment, EnvGymnasium, EnvGymnax
 
-from bordax.policies.utils import Policy, ActorCritic
+from bordax.policies.utils import Policy, PolicyValue
 from bordax.environments.utils import Environment, EnvGymnax
 from bordax.environments.pomdp.pomdp import BeliefWrapper
 
@@ -18,10 +18,11 @@ import flax
 import flax.linen as nn
 import distrax
 
-# standard mlp actor-critic
+# standard mlp policy-value
+
 
 class PieceMLP(nn.Module):
-    layer_sizes : List[int]
+    layer_sizes: List[int]
 
     def setup(self):
         self.dense_layers = [
@@ -33,7 +34,8 @@ class PieceMLP(nn.Module):
         for layer in self.dense_layers[:-1]:
             x = layer(x)
             x = nn.relu(x)
-        return  self.dense_layers[-1](x)
+        return self.dense_layers[-1](x)
+
 
 class MLP(nn.Module):
     layer_sizes: List[List[int]]
@@ -58,13 +60,15 @@ def make_policy_mlp(
     action_dim,
     hidden_layer_sizes: Sequence[Sequence[int]] = ((1,),),
 ):
-    
+
     policy_module = MLP(layer_sizes=list(hidden_layer_sizes) + [[action_dim]])
 
     def apply(policy_params, obs):
         logits, features = policy_module.apply(policy_params, obs)
         pi = distrax.Categorical(logits=logits)
-        activation_distributions = [distrax.Categorical(probs=probs) for probs in features]
+        activation_distributions = [
+            distrax.Categorical(probs=probs) for probs in features
+        ]
         return pi, activation_distributions
 
     obs_size = obs_shape[0]
@@ -86,7 +90,7 @@ def make_value_mlp(
     return Policy(init=lambda key: value_module.init(key, dummy_obs), apply=apply)
 
 
-def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
+def make_policy_value_mlp(env, **kwargs) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -104,6 +108,4 @@ def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
     policy = make_policy_mlp(obs_shape, action_dim)
     value = make_value_mlp(obs_shape)
 
-    return ActorCritic(actor=policy, critic=value)
-
-
+    return PolicyValue(policy=policy, value=value)

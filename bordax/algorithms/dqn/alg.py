@@ -216,11 +216,11 @@ def train(
     )
 
     buffer = buffer.replace(
-            init=jax.jit(buffer.init),
-            add=jax.jit(buffer.add, donate_argnums=0),
-            sample=jax.jit(buffer.sample),
-            can_sample=jax.jit(buffer.can_sample),
-        )
+        init=jax.jit(buffer.init),
+        add=jax.jit(buffer.add, donate_argnums=0),
+        sample=jax.jit(buffer.sample),
+        can_sample=jax.jit(buffer.can_sample),
+    )
 
     rng = jax.random.PRNGKey(0)  # use a dummy rng here
     _action = env.action_space().sample(rng)
@@ -230,17 +230,17 @@ def train(
 
     buffer_state = buffer.init(_timestep)
 
-    actor = policy_maker(env, env_params=env_params)
-    make_policy = make_inference_fn(actor)
+    policy = policy_maker(env, env_params=env_params)
+    make_policy = make_inference_fn(policy)
     optimizer = optax.adam(config.learning_rate)
-    update_fn = gradient_update_fn(optimizer, config.gamma, actor)
+    update_fn = gradient_update_fn(optimizer, config.gamma, policy)
     training_step = training_step_fn(
         env, env_params, make_policy, update_fn, buffer, config
     )
     training_epoch = training_epoch_fn(training_step, config)
     evaluate = evaluate_fn(env, make_policy, 10, env_params)
 
-    init_params = actor.init(key_init)
+    init_params = policy.init(key_init)
     epsilon = config.epsilon_start
     training_state = TrainingState(
         optimizer_state=optimizer.init(init_params),

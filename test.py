@@ -3,16 +3,7 @@ import gymnasium as gym
 import jax.numpy as jnp
 import numpy as np
 from bordax.policies.utils import policy_factory_mlp
-from bordax.policies.mlp import make_actor_critic_mlp
-# from bordax.policies.forced_mlp import make_actor_critic_mlp
-from bordax.policies.dtsemnet import (
-    make_actor_critic_dtsemnet,
-    make_actor_critic_dtsemnet_feature,
-)
-from bordax.policies.boolean import (
-    make_actor_critic_boolean,
-    make_actor_critic_boolean_feature,
-)
+from bordax.policies.mlp import make_policy_value_mlp
 
 from bordax.algorithms.ppo.alg import train, PPOConfig
 
@@ -28,11 +19,7 @@ if __name__ == "__main__":
     results = []
 
     architectures = [
-        # make_actor_critic_boolean_feature,
-        # make_actor_critic_dtsemnet_feature,
-        # make_actor_critic_boolean,
-        # make_actor_critic_dtsemnet,
-        make_actor_critic_mlp,
+        make_policy_value_mlp,
     ]
 
     for architecture in architectures:

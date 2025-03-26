@@ -1,25 +1,25 @@
 import jax.numpy as jnp
 
-from bordax.policies.utils import ActorCritic
+from bordax.policies.utils import PolicyValue
 
 
 def ppo_loss(
     params,  # policy parameters
     batch,  # rollout
-    actor_critic: ActorCritic,  #
+    policy_value: PolicyValue,  #
     epsilon: float,  #
     vf_coef: float = 0.5,  # these are fixed for the whole training process
     entropy_coef: float = 1e-4,  #
     normalize_advantage: bool = True,  #
 ):
 
-    actor = actor_critic.actor
-    critic = actor_critic.critic
+    policy = policy_value.policy
+    value = policy_value.value
 
     (rollout, advantages, targets) = batch
 
-    pi, _ = actor.get_distribution(params.actor_params, rollout.obs)
-    values = critic.get_value(params.critic_params, rollout.obs)
+    pi, _ = policy.get_distribution(params.policy_params, rollout.obs)
+    values = value.get_value(params.value_params, rollout.obs)
     log_prob = pi.log_prob(rollout.action)
 
     if normalize_advantage:
@@ -50,7 +50,7 @@ def ppo_loss(
 def ppo_explain_loss(
     params,  # policy parameters
     batch,  # rollout
-    actor_critic: ActorCritic,  #
+    policy_value: PolicyValue,  #
     epsilon: float,  #
     vf_coef: float = 0.5,  # these are fixed for the whole training process
     entropy_coef: float = 1e-4,  #
@@ -58,13 +58,13 @@ def ppo_explain_loss(
     normalize_advantage: bool = True,  #
 ):
 
-    actor = actor_critic.actor
-    critic = actor_critic.critic
+    policy = policy_value.policy
+    value = policy_value.value
 
     (rollout, advantages, targets) = batch
 
-    pi, layer_distributions = actor.apply(params.actor_params, rollout.obs)
-    values = critic.apply(params.critic_params, rollout.obs)
+    pi, layer_distributions = policy.apply(params.policy_params, rollout.obs)
+    values = value.apply(params.value_params, rollout.obs)
     log_prob = pi.log_prob(rollout.action)
 
     if normalize_advantage:

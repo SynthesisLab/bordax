@@ -7,7 +7,7 @@ import flax
 
 from bordax.algorithms.ppo.losses import ppo_loss
 from bordax.algorithms.utils import compute_gae
-from bordax.policies.utils import ActorCriticMaker, ActorCriticParams
+from bordax.policies.utils import PolicyValueMaker, PolicyValueParams
 from bordax.environments.utils import generate_unroll
 
 from typing import Any, Dict, NamedTuple, Callable, Union
@@ -49,7 +49,7 @@ class PPOConfig(NamedTuple):
 @flax.struct.dataclass
 class TrainingState:
     optimizer_state: optax.OptState
-    params: ActorCriticParams
+    params: PolicyValueParams
     env_params: Any
 
 
@@ -122,8 +122,8 @@ def training_step_fn(env, make_policy, make_value, sgd_step, config: PPOConfig):
         key_sgd, key_generate_unroll, key = jax.random.split(key, 3)
 
         # reconstruct the policy from the parameters
-        policy = jax.jit(make_policy(training_state.params.actor_params))
-        value = jax.jit(make_value(training_state.params.critic_params))
+        policy = jax.jit(make_policy(training_state.params.policy_params))
+        value = jax.jit(make_value(training_state.params.value_params))
 
         # collect the data for the batch
         (last_obs, last_state), data = generate_unroll(
@@ -195,7 +195,7 @@ def training_epoch_fn(training_step, config: PPOConfig):
 def evaluate_fn(env, make_policy, n_envs, env_params):
     # evaluation of a jittable environment, for example gymnax
     def evaluate_jittable(key, params):
-        policy = make_policy(params.actor_params, deterministic=True)
+        policy = make_policy(params.policy_params, deterministic=True)
 
         def evaluate_one_episode(key):
             obs, env_state = env.reset(key, env_params)
@@ -226,7 +226,7 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
 
     # evaluation of a non-jittable gymnasium environment
     def evaluate_non_jittable(key, params):
-        policy = jax.jit(make_policy(params.actor_params, deterministic=True))
+        policy = jax.jit(make_policy(params.policy_params, deterministic=True))
 
         def evaluate_one_episode(key):
             seed = jax.random.randint(key, (), 0, 2**8).item()
@@ -260,7 +260,7 @@ def evaluate_fn(env, make_policy, n_envs, env_params):
 def train(
     environment: Union[EnvGymnax, EnvGymnasium],
     env_params: Dict,
-    policy_maker: ActorCriticMaker,
+    policy_maker: PolicyValueMaker,
     make_inference_fn,
     config: PPOConfig = PPOConfig(
         learning_rate=2.5e-3,
@@ -303,9 +303,9 @@ def train(
     elif isinstance(env, EnvGymnax):
         validation_env = env
 
-    actor_critic = policy_maker(env, env_params=env_params)
+    policy_value = policy_maker(env, env_params=env_params)
 
-    make_policy, make_value = make_inference_fn(actor_critic)
+    make_policy, make_value = make_inference_fn(policy_value)
 
     optimizer = optax.adam(config.learning_rate)
 
@@ -316,7 +316,7 @@ def train(
 
     loss_fn = partial(
         ppo_loss,
-        actor_critic=actor_critic,
+        policy_value=policy_value,
         epsilon=config.epsilon,
         vf_coef=config.vf_coef,
         entropy_coef=config.entropy_coef,
@@ -325,7 +325,7 @@ def train(
 
     # loss_fn = jax.jit(loss_fn)
 
-    # gradient update step calculates the loss by applying the actor-critic to a minibatch
+    # gradient update step calculates the loss by applying the policy-value to a minibatch
     # and then updates the parameters of the policy according to the gradient
     gradient_update = gradient_update_fn(loss_fn, optimizer)
 
@@ -358,14 +358,14 @@ def train(
         obs_v = jnp.array(obs_v)
         env_state_v = jnp.array([])
 
-    key_actor, key_critic = jax.random.split(key_init_params)
+    key_policy, key_value = jax.random.split(key_init_params)
 
-    init_policy_params = ActorCriticParams(
-        actor_critic.actor.init(key_actor),
-        actor_critic.critic.init(key_critic),
+    init_policy_params = PolicyValueParams(
+        policy_value.policy.init(key_policy),
+        policy_value.value.init(key_value),
     )
     if config.debug:
-        print(jax.tree_map(lambda l: l.shape, init_policy_params.actor_params))
+        print(jax.tree_map(lambda l: l.shape, init_policy_params.policy_params))
 
     training_state = TrainingState(
         optimizer.init(init_policy_params), init_policy_params, env_params

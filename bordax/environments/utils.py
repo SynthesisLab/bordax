@@ -1,3 +1,4 @@
+import flax.struct
 import jax
 import jax.numpy as jnp
 import flax
@@ -18,7 +19,9 @@ Environment = Union[EnvGymnax, EnvGymnasium]
 EnvState = Any
 
 
-class Transition(NamedTuple):
+# class Transition(NamedTuple):
+@flax.struct.dataclass
+class Transition:
     done: jnp.ndarray
     action: jnp.ndarray
     reward: jnp.ndarray

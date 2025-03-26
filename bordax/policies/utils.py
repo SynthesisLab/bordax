@@ -14,9 +14,9 @@ import distrax
 
 
 @flax.struct.dataclass
-class ActorCriticParams:
-    actor_params: Any
-    critic_params: Any
+class PolicyValueParams:
+    policy_params: Any
+    value_params: Any
 
 
 @flax.struct.dataclass
@@ -32,12 +32,12 @@ class Value:
 
 
 @flax.struct.dataclass
-class ActorCritic:
-    actor: Policy
-    critic: Value
+class PolicyValue:
+    policy: Policy
+    value: Value
 
 
-ActorCriticMaker = Callable[[Environment, Dict[str, Any]], ActorCritic]
+PolicyValueMaker = Callable[[Environment, Dict[str, Any]], PolicyValue]
 
 
 class MLP_dtsemnet_value(nn.Module):
@@ -109,10 +109,10 @@ class MLP_dtsemnet_value(nn.Module):
 # not the whole distribution
 
 
-def policy_factory_mlp(actor_critic: ActorCritic):
+def policy_factory_mlp(policy_value: PolicyValue):
 
     def make_policy(policy_params, deterministic=False):
-        policy_mlp = actor_critic.actor
+        policy_mlp = policy_value.policy
 
         def action(obs, key):
             pi, features = policy_mlp.get_distribution(policy_params, obs)
@@ -123,11 +123,11 @@ def policy_factory_mlp(actor_critic: ActorCritic):
 
         return action
 
-    def make_value(critic_params):
-        value_mlp = actor_critic.critic
+    def make_value(value_params):
+        value_mlp = policy_value.value
 
         def value(obs):
-            return value_mlp.get_value(critic_params, obs)
+            return value_mlp.get_value(value_params, obs)
 
         return value
 
@@ -151,12 +151,12 @@ def epsilon_greedy_exploration(key, q_vals, eps):
     return chosed_actions
 
 
-def q_function_factory(actor):
+def q_function_factory(policy):
     def make_q_function(params, deterministic=False):
         def apply(obs, key, epsilon):
-            q_vals = actor.apply(params, obs)
+            q_vals = policy.apply(params, obs)
             if deterministic:
-                return jnp.argmax(actor.apply(params, obs), axis=-1)
+                return jnp.argmax(policy.apply(params, obs), axis=-1)
 
             action = epsilon_greedy_exploration(key, q_vals, epsilon)
 
@@ -167,7 +167,7 @@ def q_function_factory(actor):
     return make_q_function
 
 
-def make_actor_critic_dtsemnet_value(env, **kwargs) -> ActorCritic:
+def make_policy_value_dtsemnet_value(env, **kwargs) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -194,7 +194,7 @@ def make_actor_critic_dtsemnet_value(env, **kwargs) -> ActorCritic:
     policy = Policy(init=lambda key: module.init(key, dummy_obs), apply=apply_policy)
     value = Policy(init=lambda key: module.init(key, dummy_obs), apply=apply_value)
 
-    return ActorCritic(actor=policy, critic=value)
+    return PolicyValue(policy=policy, value=value)
 
 
 # add something over all leaves of dtsemnet
@@ -212,7 +212,7 @@ def make_policy_dt_actions(obs_shape, action_dim, tree_depth):
     return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
 
 
-def make_actor_critic_dt_actions(env, **kwargs) -> ActorCritic:
+def make_policy_value_dt_actions(env, **kwargs) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -224,4 +224,4 @@ def make_actor_critic_dt_actions(env, **kwargs) -> ActorCritic:
     policy = make_policy_dt_actions(obs_shape, action_dim, 3)
     value = make_value_mlp(obs_shape)
 
-    return ActorCritic(actor=policy, critic=value)
+    return PolicyValue(policy=policy, value=value)

@@ -5,7 +5,7 @@ import numpy as np
 
 from bordax.environments.utils import Environment, EnvGymnasium, EnvGymnax
 
-from bordax.policies.utils import Policy, Value, ActorCritic
+from bordax.policies.utils import Policy, Value, PolicyValue
 from bordax.environments.utils import Environment, EnvGymnax
 from bordax.environments.pomdp.pomdp import BeliefWrapper
 
@@ -16,7 +16,7 @@ import flax
 import flax.linen as nn
 import distrax
 
-# standard mlp actor-critic
+# standard mlp policy-value
 
 
 class MLP(nn.Module):
@@ -33,6 +33,10 @@ class MLP(nn.Module):
             x = layer(x)
             x = nn.relu(x)
         return self.dense_layers[-1](x)
+
+
+# these are the methods that are used during training,
+# that is, when we need direct access to distributions or layer activations
 
 
 def make_policy_mlp(
@@ -71,7 +75,7 @@ def make_value_mlp(
     )
 
 
-def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
+def make_policy_value_mlp(env, **kwargs) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -89,7 +93,7 @@ def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:
     policy = make_policy_mlp(obs_shape, action_dim)
     value = make_value_mlp(obs_shape)
 
-    return ActorCritic(actor=policy, critic=value)
+    return PolicyValue(policy=policy, value=value)
 
 
 def make_q_mlp(env, **kwargs):
