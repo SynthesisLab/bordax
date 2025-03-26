@@ -18,8 +18,8 @@ def ppo_loss(
 
     (rollout, advantages, targets) = batch
 
-    pi, _ = actor.apply(params.actor_params, rollout.obs)
-    values = critic.apply(params.critic_params, rollout.obs)
+    pi, _ = actor.get_distribution(params.actor_params, rollout.obs)
+    values = critic.get_value(params.critic_params, rollout.obs)
     log_prob = pi.log_prob(rollout.action)
 
     if normalize_advantage:
@@ -43,8 +43,9 @@ def ppo_loss(
         "total_loss": total_loss,
         "policy_loss": policy_loss,
         "value_loss": value_loss,
-        "entropy_loss": entropy_loss
+        "entropy_loss": entropy_loss,
     }
+
 
 def ppo_explain_loss(
     params,  # policy parameters
@@ -82,15 +83,21 @@ def ppo_explain_loss(
     entropy_loss = pi.entropy().mean()
 
     # entropy loss for pieces layers activation
-    entropy_activation_loss = jnp.array([pi.entropy().mean() for pi in layer_distributions]).sum()
+    entropy_activation_loss = jnp.array(
+        [pi.entropy().mean() for pi in layer_distributions]
+    ).sum()
 
-
-    total_loss = policy_loss + (vf_coef * value_loss) - (entropy_coef * entropy_loss) + (layer_entropy_coef * entropy_activation_loss)
+    total_loss = (
+        policy_loss
+        + (vf_coef * value_loss)
+        - (entropy_coef * entropy_loss)
+        + (layer_entropy_coef * entropy_activation_loss)
+    )
 
     return total_loss, {
         "total_loss": total_loss,
         "policy_loss": policy_loss,
         "value_loss": value_loss,
         "entropy_loss": entropy_loss,
-        "activation_loss": entropy_activation_loss
+        "activation_loss": entropy_activation_loss,
     }

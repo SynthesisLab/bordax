@@ -5,7 +5,7 @@ import numpy as np
 
 from bordax.environments.utils import Environment, EnvGymnasium, EnvGymnax
 
-from bordax.policies.utils import Policy, ActorCritic
+from bordax.policies.utils import Policy, Value, ActorCritic
 from bordax.environments.utils import Environment, EnvGymnax
 from bordax.environments.pomdp.pomdp import BeliefWrapper
 
@@ -42,14 +42,17 @@ def make_policy_mlp(
 ):
     policy_module = MLP(layer_sizes=list(hidden_layer_sizes) + [action_dim])
 
-    def apply(policy_params, obs):
+    def get_distribution(policy_params, obs):
         logits = policy_module.apply(policy_params, obs)
         pi = distrax.Categorical(logits=logits)
         return pi, {}
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
-    return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
+    return Policy(
+        init=lambda key: policy_module.init(key, dummy_obs),
+        get_distribution=get_distribution,
+    )
 
 
 def make_value_mlp(
@@ -58,12 +61,14 @@ def make_value_mlp(
 ):
     value_module = MLP(layer_sizes=list(hidden_layer_sizes) + [1])
 
-    def apply(value_params, obs):
+    def get_value(value_params, obs):
         return jnp.squeeze(value_module.apply(value_params, obs), axis=-1)
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
-    return Policy(init=lambda key: value_module.init(key, dummy_obs), apply=apply)
+    return Value(
+        init=lambda key: value_module.init(key, dummy_obs), get_value=get_value
+    )
 
 
 def make_actor_critic_mlp(env, **kwargs) -> ActorCritic:

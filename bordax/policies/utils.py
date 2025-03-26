@@ -1,5 +1,5 @@
 import flax.struct
-from typing import Callable, Sequence, List, Dict, Any
+from typing import Callable, Sequence, List, Dict, Any, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -22,17 +22,19 @@ class ActorCriticParams:
 @flax.struct.dataclass
 class Policy:
     init: Callable[..., Any]
-    apply: Callable[..., Any]
+    get_distribution: Callable[..., Tuple[distrax.DistributionLike, Any]]
+
 
 @flax.struct.dataclass
 class Value:
     init: Callable[..., Any]
-    apply: Callable[..., jax.Array]
+    get_value: Callable[..., jax.Array]
+
 
 @flax.struct.dataclass
 class ActorCritic:
-    actor: Any
-    critic: Any
+    actor: Policy
+    critic: Value
 
 
 ActorCriticMaker = Callable[[Environment, Dict[str, Any]], ActorCritic]
@@ -102,27 +104,32 @@ class MLP_dtsemnet_value(nn.Module):
         return x
 
 
+# these are the methods that are used during the rollout
+# in particular, we are interested only in one action taken by the policy,
+# not the whole distribution
+
+
 def policy_factory_mlp(actor_critic: ActorCritic):
 
     def make_policy(policy_params, deterministic=False):
         policy_mlp = actor_critic.actor
 
-        def apply(obs, key):
-            pi, features = policy_mlp.apply(policy_params, obs)
+        def action(obs, key):
+            pi, features = policy_mlp.get_distribution(policy_params, obs)
             if deterministic:
                 return pi.mode(), {}
             action, log_prob = pi.sample_and_log_prob(seed=key)
             return action, {"log_prob": log_prob, "features": features}
 
-        return apply
+        return action
 
     def make_value(critic_params):
         value_mlp = actor_critic.critic
 
-        def apply(obs):
-            return value_mlp.apply(critic_params, obs)
+        def value(obs):
+            return value_mlp.get_value(critic_params, obs)
 
-        return apply
+        return value
 
     return make_policy, make_value
 
