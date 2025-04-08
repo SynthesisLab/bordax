@@ -1,9 +1,15 @@
 import gymnax
 import gymnasium as gym
+import jax
 import jax.numpy as jnp
 import numpy as np
-from bordax.policies.utils import policy_factory_mlp
+from bordax.policies.utils import action_value_factory
+import distrax
+from typing import List
+
 from bordax.policies.mlp import make_policy_value_mlp
+
+# from bordax.policies.forced_mlp import make_policy_value_mlp
 
 from bordax.algorithms.ppo.alg import train, PPOConfig
 
@@ -12,9 +18,10 @@ import os
 from tqdm import trange
 
 if __name__ == "__main__":
-    env, env_params = gymnax.make("CartPole-v1")
-    # env= gym.make_vec("LunarLander-v3")
-    # env_params = {}
+    env_name = "LunarLander-v3"
+    # env, env_params = gymnax.make("CartPole-v1")
+    env = gym.make_vec(env_name)
+    env_params = {}
 
     results = []
 
@@ -51,7 +58,7 @@ if __name__ == "__main__":
                 env_jitable=True,
             )
             training_state, checkpoints = train(
-                env, env_params, architecture, policy_factory_mlp, config
+                env, env_params, architecture, action_value_factory, config
             )
             checkpoints.block_until_ready()
             end_time = time.time()
@@ -68,9 +75,31 @@ if __name__ == "__main__":
 
             print(f"Seed {seed} took {end_time - start_time} seconds")
             # print(info)
-            reward_fp = f"logs/cart_pole/{architecture.__name__}/"
+            reward_fp = f"logs/pomdp/{architecture.__name__}/"
             if not os.path.exists(reward_fp):
                 os.makedirs(reward_fp)
             fn = f"{reward_fp}seed{seed}_rewards.txt"
             with open(fn, "w") as file:
                 np.savetxt(fn, jnp.mean(checkpoints, axis=1), fmt="%.1f")
+
+            # # showcase
+            # show_env = gym.make(env_name, render_mode="human")
+            # policy_params = training_state.params.policy_params
+            # policy_value = architecture(env, env_params=env_params)
+            # make_policy, _ = action_value_factory(policy_value)
+            # policy = make_policy(policy_params, deterministic=True)
+            # obs, _ = show_env.reset(seed=20)
+            # done = False
+            # key = jax.random.PRNGKey(seed)
+            # while not done:
+            #     action, info = policy(obs, key)
+            #     activations: List[distrax.Categorical] = info["features"]
+            #     obs, reward, done, truncated, _ = show_env.step(action.__array__())
+            #     string = [
+            #         [round(num, 2) for num in arr.tolist()]
+            #         for arr in [dist.probs for dist in activations]
+            #     ]
+            #     print(string)
+            #     show_env.render()
+            #     done = done or truncated
+            # show_env.close()

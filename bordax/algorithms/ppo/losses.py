@@ -50,11 +50,11 @@ def ppo_loss(
 def ppo_explain_loss(
     params,  # policy parameters
     batch,  # rollout
+    layer_entropy_coef,
     policy_value: PolicyValue,  #
     epsilon: float,  #
     vf_coef: float = 0.5,  # these are fixed for the whole training process
     entropy_coef: float = 1e-4,  #
-    layer_entropy_coef: float = 1e-4,
     normalize_advantage: bool = True,  #
 ):
 
@@ -63,8 +63,8 @@ def ppo_explain_loss(
 
     (rollout, advantages, targets) = batch
 
-    pi, layer_distributions = policy.apply(params.policy_params, rollout.obs)
-    values = value.apply(params.value_params, rollout.obs)
+    pi, layer_distributions = policy.get_distribution(params.policy_params, rollout.obs)
+    values = value.get_value(params.value_params, rollout.obs)
     log_prob = pi.log_prob(rollout.action)
 
     if normalize_advantage:

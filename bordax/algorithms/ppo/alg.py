@@ -5,7 +5,7 @@ from jax import numpy as jnp
 import optax
 import flax
 
-from bordax.algorithms.ppo.losses import ppo_loss
+from bordax.algorithms.ppo.losses import ppo_loss, ppo_explain_loss
 from bordax.algorithms.utils import compute_gae
 from bordax.policies.utils import PolicyValueMaker, PolicyValueParams
 from bordax.environments.utils import generate_unroll
@@ -371,7 +371,7 @@ def train(
         optimizer.init(init_policy_params), init_policy_params, env_params
     )
 
-    evaluate = evaluate_fn(validation_env, make_policy, 1, env_params)
+    evaluate = evaluate_fn(validation_env, make_policy, 10, env_params)
 
     print(
         "Total number of timesteps: ",

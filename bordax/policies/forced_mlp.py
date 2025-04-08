@@ -5,7 +5,7 @@ import numpy as np
 
 from bordax.environments.utils import Environment, EnvGymnasium, EnvGymnax
 
-from bordax.policies.utils import Policy, PolicyValue
+from bordax.policies.utils import Policy, Value, PolicyValue
 from bordax.environments.utils import Environment, EnvGymnax
 from bordax.environments.pomdp.pomdp import BeliefWrapper
 
@@ -47,7 +47,7 @@ class MLP(nn.Module):
         output = x
         intermediate_outputs = []
         for i, piece in enumerate(self.pieces[:-1]):
-            output = nn.softmax(piece(output))
+            output = piece(output)
             intermediate_outputs.append(output)
             # self.sow(f"pieces", f"{i}", output)
             output = jnp.concat([output, x], axis=-1)
@@ -58,22 +58,25 @@ class MLP(nn.Module):
 def make_policy_mlp(
     obs_shape,
     action_dim,
-    hidden_layer_sizes: Sequence[Sequence[int]] = ((1,),),
+    hidden_layer_sizes: Sequence[Sequence[int]] = ((5, 2), (5, 2), (5, 2)),
 ):
 
     policy_module = MLP(layer_sizes=list(hidden_layer_sizes) + [[action_dim]])
 
-    def apply(policy_params, obs):
+    def get_distribution(policy_params, obs):
         logits, features = policy_module.apply(policy_params, obs)
         pi = distrax.Categorical(logits=logits)
         activation_distributions = [
-            distrax.Categorical(probs=probs) for probs in features
+            distrax.Categorical(logits=activation) for activation in features
         ]
         return pi, activation_distributions
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
-    return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
+    return Policy(
+        init=lambda key: policy_module.init(key, dummy_obs),
+        get_distribution=get_distribution,
+    )
 
 
 def make_value_mlp(
@@ -82,12 +85,12 @@ def make_value_mlp(
 ):
     value_module = StandardMLP(layer_sizes=list(hidden_layer_sizes) + [1])
 
-    def apply(value_params, obs):
+    def value(value_params, obs):
         return jnp.squeeze(value_module.apply(value_params, obs), axis=-1)
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
-    return Policy(init=lambda key: value_module.init(key, dummy_obs), apply=apply)
+    return Value(init=lambda key: value_module.init(key, dummy_obs), get_value=value)
 
 
 def make_policy_value_mlp(env, **kwargs) -> PolicyValue:

@@ -75,7 +75,9 @@ def make_value_mlp(
     )
 
 
-def make_policy_value_mlp(env, **kwargs) -> PolicyValue:
+def make_policy_value_mlp(
+    env, policy_layer_sizes=(10,), value_layer_sizes=(32, 32), **kwargs
+) -> PolicyValue:
     if isinstance(env, EnvGymnax):
         obs_space = env.observation_space(kwargs["env_params"])
         obs_shape = obs_space.shape
@@ -90,8 +92,8 @@ def make_policy_value_mlp(env, **kwargs) -> PolicyValue:
     else:
         raise NotImplementedError
 
-    policy = make_policy_mlp(obs_shape, action_dim)
-    value = make_value_mlp(obs_shape)
+    policy = make_policy_mlp(obs_shape, action_dim, policy_layer_sizes)
+    value = make_value_mlp(obs_shape, value_layer_sizes)
 
     return PolicyValue(policy=policy, value=value)
 
