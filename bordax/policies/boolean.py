@@ -23,7 +23,7 @@ class MLP_boolean(nn.Module):
         self.weights = nn.Dense(
             self.n,
             kernel_init=nn.initializers.orthogonal(),
-            bias_init=nn.initializers.uniform(),
+            use_bias=False,
         )
 
     def __call__(self, x):
@@ -63,13 +63,16 @@ class MLP_boolean(nn.Module):
 def make_policy_boolean(obs_shape, action_dim, n):
     policy_module = MLP_boolean(action_dim=action_dim, n=n)
 
-    def apply(policy_params, obs):
+    def get_distribution(policy_params, obs):
         pi = distrax.Categorical(logits=policy_module.apply(policy_params, obs))
-        return pi
+        return pi, {}
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
-    return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
+    return Policy(
+        init=lambda key: policy_module.init(key, dummy_obs),
+        get_distribution=get_distribution,
+    )
 
 
 def make_policy_value_boolean(env, **kwargs) -> PolicyValue:

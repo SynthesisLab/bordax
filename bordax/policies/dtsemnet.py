@@ -83,13 +83,16 @@ class MLP_dtsemnet(nn.Module):
 def make_policy_dtsemnet(obs_shape, action_dim, tree_depth):
     policy_module = MLP_dtsemnet(action_dim=action_dim, tree_depth=tree_depth)
 
-    def apply(policy_params, obs):
+    def get_distribution(policy_params, obs):
         pi = distrax.Categorical(logits=policy_module.apply(policy_params, obs))
         return pi, {}
 
     obs_size = obs_shape[0]
     dummy_obs = jnp.zeros((1, obs_size))
-    return Policy(init=lambda key: policy_module.init(key, dummy_obs), apply=apply)
+    return Policy(
+        init=lambda key: policy_module.init(key, dummy_obs),
+        get_distribution=get_distribution,
+    )
 
 
 def make_policy_value_dtsemnet(env, **kwargs) -> PolicyValue:

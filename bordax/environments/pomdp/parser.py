@@ -6,7 +6,8 @@ from bordax.environments.pomdp.utils import POMDP
 #
 # https://www.pomdp.org/code/pomdp-file-grammar.html
 
-parser = lark.Lark(r"""
+parser = lark.Lark(
+    r"""
     pomdp_file      : preamble start? param_list
 
     // First part: preamble
@@ -81,7 +82,11 @@ parser = lark.Lark(r"""
     %import common.WS
     %ignore WS
     %ignore COMMENT
-    """, start="pomdp_file", parser="lalr")
+    """,
+    start="pomdp_file",
+    parser="lalr",
+)
+
 
 class TreeSimplifier(lark.Transformer):
     def string(self, s):
@@ -117,6 +122,7 @@ class TreeToSets(lark.Visitor):
 
     def obs_param(self, tree):
         self.pomdp.setObs(tree.children[0])
+
 
 class TreeToProbs(lark.Visitor):
     def __init__(self, pomdp):
@@ -165,21 +171,33 @@ class TreeToProbs(lark.Visitor):
             self.pomdp.addObs(matrix, act=action)
 
     def reward_entry(self, tree):
-        # we do not allow the reward to depend on start_state and obs
-        (action, _, end_state, _, reward) = tree.children
+        # the rewards can depend on the action, initial state, final state and observations
+
+        (action, state, next_state, observation, reward) = tree.children
         if isinstance(action, lark.Tree) and action.data == "asterisk":
             action = None
-        if isinstance(end_state, lark.Tree) and end_state.data == "asterisk":
-            end_state = None        
-        self.pomdp.addReward(action, end_state, reward)
+        if isinstance(state, lark.Tree) and state.data == "asterisk":
+            state = None
+        if isinstance(next_state, lark.Tree) and next_state.data == "asterisk":
+            next_state = None
+        if isinstance(observation, lark.Tree) and observation.data == "asterisk":
+            observation = None
+        self.pomdp.addReward(
+            action=action,
+            start_state=state,
+            next_state=next_state,
+            observation=observation,
+            reward=reward,
+        )
 
     def reward_row(self, tree):
         # TO DO
-        assert(False)
+        assert False
 
     def reward_matrix(self, tree):
         # TO DO
-        assert(False)
+        assert False
+
 
 def parse(instr):
     cst = parser.parse(instr)
