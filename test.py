@@ -8,6 +8,14 @@ import distrax
 from typing import List
 
 from bordax.policies.mlp import make_policy_value_mlp
+from bordax.policies.dtsemnet import make_policy_value_dtsemnet
+from bordax.policies.boolean import make_policy_value_boolean
+
+from bordax.environments.pomdp.parser import parse
+from bordax.environments.pomdp.utils import POMDP
+from bordax.environments.pomdp.pomdp import jPOMDP, BeliefWrapper
+
+# from bordax.environments.pomdp.pomdp import
 
 # from bordax.policies.forced_mlp import make_policy_value_mlp
 
@@ -18,15 +26,23 @@ import os
 from tqdm import trange
 
 if __name__ == "__main__":
-    env_name = "LunarLander-v3"
-    # env, env_params = gymnax.make("CartPole-v1")
-    env = gym.make_vec(env_name)
-    env_params = {}
+    # env_name = "CartPole-v1"
+    # env, env_params = gymnax.make(env_name)
+    # env = gym.make_vec(env_name)
+
+    with open("environments/tiger.aaai.POMDP") as f:
+        pomdp = parse(f.read())
+    jpomdp = jPOMDP(pomdp)
+    env = BeliefWrapper(jpomdp)
+
+    env_params = {"cutoff": 100}
 
     results = []
 
     architectures = [
         make_policy_value_mlp,
+        make_policy_value_dtsemnet,
+        make_policy_value_boolean,
     ]
 
     for architecture in architectures:
@@ -75,7 +91,7 @@ if __name__ == "__main__":
 
             print(f"Seed {seed} took {end_time - start_time} seconds")
             # print(info)
-            reward_fp = f"logs/pomdp/{architecture.__name__}/"
+            reward_fp = f"logs/pomdp_tiger/{architecture.__name__}/"
             if not os.path.exists(reward_fp):
                 os.makedirs(reward_fp)
             fn = f"{reward_fp}seed{seed}_rewards.txt"

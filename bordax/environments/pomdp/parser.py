@@ -52,7 +52,7 @@ parser = lark.Lark(
                     | id u_matrix           -> obs_matrix
 
     ?reward_prob_spec: "R" ":" reward_spec_tail
-    reward_spec_tail: id ":" id ":" id ":" id prob -> reward_entry
+    reward_spec_tail: id ":" id ":" id ":" id number -> reward_entry
                     | id ":" id ":" id u_matrix    -> reward_row
                     | id u_matrix           -> reward_matrix
 
@@ -69,10 +69,18 @@ parser = lark.Lark(
                     | string
                     | "*"    -> asterisk
     id_list         : string+
-    prob            : int | float
+    prob            : signed_number
     ?int            : INTTOK
     string          : STRINGTOK
     ?float          : FLOATTOK
+
+    ?number: signed_number
+
+    ?signed_number: SIGNED_FLOATTOK -> float
+                | SIGNED_INTTOK -> int
+
+    SIGNED_FLOATTOK: /[+-]?([0-9]+\.[0-9]*|\.[0-9]+|[0-9]+)([eE][+-]?[0-9]+)?/
+    SIGNED_INTTOK: /[+-]?[0-9]+/
 
     INTTOK: /0|[1-9][0-9]*'/
     FLOATTOK: /([0-9]+\.[0-9]*|\.[0-9]+|[0-9]+)([eE][+-]?[0-9]+)?/
@@ -96,8 +104,16 @@ class TreeSimplifier(lark.Transformer):
     def prob(self, n):
         (n,) = n
         n = float(n)
-        assert n >= 0 and n <= 1
+        assert 0.0 <= n <= 1.0
         return n
+
+    def int(self, n):
+        (n,) = n
+        return int(n)
+
+    def float(self, n):
+        (n,) = n
+        return float(n)
 
     start_list = list
     id_list = list
@@ -205,4 +221,6 @@ def parse(instr):
     pomdp = POMDP()
     TreeToSets(pomdp).visit(ast)
     TreeToProbs(pomdp).visit(ast)
+    if pomdp.start == {}:
+        pomdp.setUniformStart()
     return pomdp

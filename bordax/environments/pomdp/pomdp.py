@@ -41,11 +41,10 @@ class jPOMDP(gymnax.environments.environment.Environment):
         # Convert transition probabilities (state, action, state')
 
         self.transitions = jnp.zeros((self.n_states, self.n_actions, self.n_states))
-        for s0_idx in self.state_to_index.values():
-            for a_idx in self.action_to_index.values():
-                for s1_idx in self.state_to_index.values():
-                    p = self.init_pomdp.trans[s0_idx][a_idx][s1_idx]
-                    self.transitions = self.transitions.at[s0_idx, a_idx, s1_idx].set(p)
+        for s0, actions in self.init_pomdp.trans.items():
+            for a, states in actions.items():
+                for s1, p in states.items():
+                    self.transitions = self.transitions.at[s0, a, s1].set(p)
 
         # Convert observation function  (action, state', obs)
         self.obs_fun = jnp.zeros((self.n_actions, self.n_states, self.n_obs))
