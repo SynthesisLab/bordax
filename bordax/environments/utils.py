@@ -2,96 +2,86 @@ import flax.struct
 import jax
 import jax.numpy as jnp
 import flax
+import chex
 from distrax import DistributionLike
 
 import numpy as np
 
-from gymnax.environments.environment import Environment as EnvGymnax
+from abc import ABC, abstractmethod
+import functools
+
+import gymnax
 from gymnasium import Env as EnvGymnasium
 from bordax.environments.pomdp.pomdp import BeliefWrapper
 import gymnasium
 
-from typing import Union, Callable, NamedTuple, Any, Tuple
-
-
-Environment = Union[EnvGymnax, EnvGymnasium]
+from typing import Callable, Any, Tuple, Mapping, Dict
+from bordax.types import PRNGKey
 
 EnvState = Any
+EnvObs = Any
+Space = Any
+
+gymnax_supported_envs = ["CartPole-v1"]
+gymnasium_supported_envs = []
 
 
-# class Transition(NamedTuple):
-@flax.struct.dataclass
-class Transition:
-    done: jnp.ndarray
-    action: jnp.ndarray
-    reward: jnp.ndarray
-    log_prob: jnp.ndarray
-    obs: jnp.ndarray
-    info: jnp.ndarray
+# we suppose that the environment is vectorised *by default*.
+# if the n is not given, then it's one
+
+class EnvAdapter(ABC):
+    is_jittable: bool
+    num_envs: int
+
+    @abstractmethod
+    def reset(self, key: PRNGKey) -> Tuple[EnvObs, EnvState]: ...
+
+    @abstractmethod
+    def step(
+        self, key: PRNGKey, state: EnvState, action: Any
+    ) -> Tuple[PRNGKey, EnvState, Any, float, bool, Mapping[str, Any]]: ...
+
+    @abstractmethod
+    def action_space(self) -> Space: ...
+
+    @abstractmethod
+    def obs_space(self) -> Space: ...
 
 
-def generate_unroll(
-    key: flax.typing.PRNGKey,
-    env,
-    policy: Callable[[Any, flax.typing.PRNGKey], Tuple[DistributionLike, Any]],
-    init_obs: Any,
-    init_state: EnvState,
-    unroll_length: int,
-    **kwargs,
-):
-    if isinstance(env, EnvGymnax) or isinstance(env, BeliefWrapper):
-        env_params = kwargs["env_params"]
-        num_envs = kwargs["num_envs"]
-        step_v = jax.vmap(env.step, in_axes=(0, 0, 0, None))
+class EnvGymnaxAdapter(EnvAdapter):
+    def __init__(self, env_name: str, num_envs: int = 1):
+        self.is_jittable = True
+        self.num_envs = num_envs
 
-        def f(carry, unused_t):
-            obs, state, current_key = carry
-            action_key, env_key, n_key = jax.random.split(current_key, 3)
-            action, policy_info = policy(obs, action_key)
+        if env_name not in gymnax_supported_envs:
+            raise ValueError(f"Gymnax does not support {env_name} environment.")
+        self.env, self.env_params = gymnax.make(env_name)
+        self.reset_v = jax.vmap(self.env.reset, in_axes=(0,))
+        self.step_v = jax.vmap(self.env.step, in_axes=(0, 0, 0))  # be careful here
 
-            env_key_v = jax.random.split(env_key, num_envs)
+    @functools.partial(jax.jit, static_argnums=(0,))
+    def reset(self, key: PRNGKey) -> Tuple[EnvState, Any]:
+        keys = jax.random.split(key, self.num_envs)
+        obs, state = self.reset_v(keys)
+        return obs, state
 
-            n_obs, n_state, reward, done, info = step_v(
-                env_key_v, state, action, env_params
-            )
-            transition = Transition(
-                done, action, reward, policy_info["log_prob"], obs, info
-            )
-            return (n_obs, n_state, n_key), transition
+    @functools.partial(jax.jit, static_argnums=(0,))
+    def step(
+        self, key: PRNGKey, state: EnvState, action: Any
+    ) -> Tuple[chex.Array, EnvState, jnp.ndarray, jnp.ndarray, Dict[Any, Any]]:
+        keys = jax.random.split(key, self.num_envs)
+        obs, state, reward, done, info = self.step_v(keys, state, action)
+        return obs, state, reward, done, info
 
-        (final_obs, final_state, _), traj_batch = jax.lax.scan(
-            f, (init_obs, init_state, key), None, length=unroll_length
-        )
+    def action_space(self):
+        return self.env.action_space()
 
-        return (final_obs, final_state), traj_batch
-    elif isinstance(env, gymnasium.vector.VectorEnv):
+    def obs_space(self):
+        return self.env.observation_space(self.env_params)
 
-        traj_batch = []
-        obs = init_obs
 
-        for i in range(unroll_length):
-            action_key, key = jax.random.split(key, 2)
-            action, policy_info = policy(obs, action_key)
-            n_obs, reward, terminated, truncated, _ = env.step(np.asarray(action))
-            done = terminated | truncated
-            transition = Transition(
-                done,
-                action,
-                reward,
-                policy_info["log_prob"],
-                obs,
-                jnp.zeros_like(n_obs),
-            )
-            obs = n_obs
-            traj_batch.append(transition)
-
-        traj_batch = transform_batch(traj_batch)
-        return (n_obs, []), traj_batch
-
+def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:
+    if env_name in gymnax_supported_envs:
+        return EnvGymnaxAdapter(env_name, num_envs)
     else:
-        raise NotImplementedError
-
-
-@jax.jit
-def transform_batch(traj_batch):
-    return jax.tree_map(lambda *args: jnp.stack(args, axis=0), *traj_batch)
+        raise ValueError(f"Environment {env_name} is not supported.")

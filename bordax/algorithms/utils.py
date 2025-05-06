@@ -1,31 +1,15 @@
-import jax
-import jax.numpy as jnp
+from bordax.algorithms.base import Algorithm, ppo_algo
 
-from typing import Any
+ALGO_REGISTRY = {
+    "ppo": ppo_algo,
+}
 
-EnvState = Any
 
-
-@jax.jit
-def compute_gae(traj_batch, last_value, values, gamma, gae_lambda):
-    def _get_advantages(gae_and_next_value, transition):
-
-        gae, next_value = gae_and_next_value
-        transition, value = transition
-        done, reward = (
-            transition.done,
-            transition.reward,
+def make_algo(algo_name: str, algo_config: dict = {}) -> Algorithm:
+    try:
+        alg = ALGO_REGISTRY[algo_name]
+    except KeyError:
+        raise ValueError(
+            f"Algo {algo_name} is not supported. Supported algos are: {list(ALGO_REGISTRY.keys())}"
         )
-
-        delta = reward + gamma * next_value * (1 - done) - value
-        gae = delta + gamma * gae_lambda * (1 - done) * gae
-
-        return (gae, value), gae
-
-    _, advantages = jax.lax.scan(
-        _get_advantages,
-        (jnp.zeros_like(last_value), last_value),
-        (traj_batch, values),
-        reverse=True,
-    )
-    return advantages, advantages + values
+    return alg(**algo_config)
