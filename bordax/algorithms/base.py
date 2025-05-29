@@ -112,7 +112,7 @@ def ppo_algo(
             (
                 FullBufferBatch(rollout_length, 1),
                 MiniBatch(rollout_length // num_minibatches),
-            )
+            ),
         ),
         SGDUpdate(
             optimizer=optax.chain(optax.clip_by_global_norm(0.5), optax.adam(lr)),

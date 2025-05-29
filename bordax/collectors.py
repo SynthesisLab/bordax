@@ -1,5 +1,5 @@
 from bordax.agents.base import Agent
-from bordax.environments.utils import EnvAdapter, EnvState
+from bordax.environments.utils import EnvAdapter, EnvState, EnvObs
 from bordax.types import PRNGKey, Params
 
 from typing import Any, Tuple
@@ -17,7 +17,8 @@ class Collector(ABC):
         self,
         key: PRNGKey,
         env: EnvAdapter,
-        obs_state: Tuple[Any, EnvState],
+        obs: EnvObs,
+        env_state: EnvState,
         agent: Agent,
         params: Params,
     ) -> Tuple[PRNGKey, EnvState, Any]: ...

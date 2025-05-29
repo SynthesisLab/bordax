@@ -30,7 +30,7 @@ if __name__ == "__main__":
                    "num_sdg_steps": 1,
                    }
 
-    env_name = "CartPole-v1"  # Replace with your environment
+    env_name = "brouillax/tiger.aaai"  # Replace with your environment
     agent_name = "mlp"  # Replace with your agent
     algo_name= "ppo" # Replace with your algorithm
 

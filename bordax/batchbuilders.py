@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Mapping, Tuple, Any
+from typing import Mapping, Tuple, Any, Sequence
 from bordax.types import PRNGKey
 import jax
 import jax.numpy as jnp
@@ -53,7 +53,7 @@ class MiniBatch(BatchBuilder):
         return minibatches
     
 class ComposedBatchBuilder(BatchBuilder):
-    def __init__(self, batch_builders: Tuple[BatchBuilder]):
+    def __init__(self, batch_builders: Sequence[BatchBuilder]):
         self.batch_builders = batch_builders
     @functools.partial(jax.jit, static_argnames=("self"))
     def __call__(

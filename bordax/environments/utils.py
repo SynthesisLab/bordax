@@ -1,21 +1,16 @@
-import flax.struct
 import jax
 import jax.numpy as jnp
 import flax
 import chex
-from distrax import DistributionLike
-
-import numpy as np
 
 from abc import ABC, abstractmethod
 import functools
 
 import gymnax
-from gymnasium import Env as EnvGymnasium
-from bordax.environments.pomdp.pomdp import BeliefWrapper
-import gymnasium
+import gymnax.environments.spaces
+import brouillax
 
-from typing import Callable, Any, Tuple, Mapping, Dict
+from typing import Any, Tuple, Mapping, Dict
 from bordax.types import PRNGKey
 
 EnvState = Any
@@ -39,7 +34,7 @@ class EnvAdapter(ABC):
     @abstractmethod
     def step(
         self, key: PRNGKey, state: EnvState, action: Any
-    ) -> Tuple[PRNGKey, EnvState, Any, float, bool, Mapping[str, Any]]: ...
+    ) -> Tuple[Any, EnvState, float, bool, Mapping[str, Any]]: ...
 
     @abstractmethod
     def action_space(self) -> Space: ...
@@ -53,9 +48,11 @@ class EnvGymnaxAdapter(EnvAdapter):
         self.is_jittable = True
         self.num_envs = num_envs
 
-        if env_name not in gymnax_supported_envs:
-            raise ValueError(f"Gymnax does not support {env_name} environment.")
-        self.env, self.env_params = gymnax.make(env_name)
+        if env_name.split("/")[0] == "gymnax":
+            self.env, self.env_params = gymnax.make(env_name.split("/")[1])
+        elif env_name.split("/")[0] == "brouillax":
+            self.env, self.env_params = brouillax.make(env_name.split("/")[1])
+
         self.reset_v = jax.vmap(self.env.reset, in_axes=(0,))
         self.step_v = jax.vmap(self.env.step, in_axes=(0, 0, 0))  # be careful here
 
@@ -81,7 +78,14 @@ class EnvGymnaxAdapter(EnvAdapter):
 
 
 def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:
-    if env_name in gymnax_supported_envs:
-        return EnvGymnaxAdapter(env_name, num_envs)
+
+    if len(env_name.split("/")) > 1:
+        # the prefix indicates what type environment to use
+        if env_name.split("/")[0] in ["gymnax", "brouillax"]:
+            return EnvGymnaxAdapter(env_name, num_envs)
+        elif env_name.split("/")[0] == "gymnasium":
+            raise NotImplementedError("Gymnasium environments are not yet supported.")
+        else:
+            raise ValueError(f"Unknown environment prefix: {env_name.split("/")[0]}")
     else:
-        raise ValueError(f"Environment {env_name} is not supported.")
+        raise ValueError("Environment name must include a prefix (e.g., 'gymnax/CartPole-v1').")

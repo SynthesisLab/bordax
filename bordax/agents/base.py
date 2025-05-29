@@ -10,6 +10,7 @@ from typing import Any, Mapping, Tuple, List, Sequence
 import flax.linen as nn
 import functools
 
+
 class Agent(ABC):
     @abstractmethod
     def init(self, key: PRNGKey, sample_obs: Any, action_space: Any) -> Params: ...
@@ -18,7 +19,6 @@ class Agent(ABC):
     def policy(
         self, params: Params, obs: Any
     ) -> Tuple[DistributionLike, Mapping[str, Any]]: ...
-
 
     @functools.partial(jax.jit, static_argnames=("self", "is_deterministic"))
     def action(
@@ -38,7 +38,9 @@ class Agent(ABC):
     def value(self, params: Params, obs: Any) -> jnp.ndarray:  # optional
         raise NotImplementedError
 
+
 # A uniform action agent
+
 
 class BlankAgent(Agent):
     def init(self, key: PRNGKey, sample_obs: Any, action_space: Any) -> Params:
@@ -53,7 +55,9 @@ class BlankAgent(Agent):
     def value(self, params: Params, obs: Any) -> jnp.ndarray:
         return jnp.zeros(obs.shape[:-1])
 
+
 # An MLP-based Actor-Critic
+
 
 class MLP(nn.Module):
     layer_sizes: List[int]
@@ -73,14 +77,18 @@ class MLP(nn.Module):
 
 class MLPPolicyValue(Agent):
 
-    def __init__(self, policy_layers: Sequence = [32, 32], value_layers=[32, 32]):
+    def __init__(
+        self,
+        policy_layers: List[int] = [32, 32],
+        value_layers: List[int] = [32, 32],
+    ):
         self.policy_layers = policy_layers
         self.value_layers = value_layers
 
     def init(self, key: PRNGKey, sample_obs: Any, action_space: Any) -> Params:
         self.action_space = action_space
-        self.policy_module = MLP(layer_sizes=self.policy_layers + [action_space.n])
-        self.value_module = MLP(layer_sizes=self.value_layers + [1])
+        self.policy_module = MLP(layer_sizes=self.policy_layers + [action_space.n,])
+        self.value_module = MLP(layer_sizes=self.value_layers + [1,])
         policy_key, value_key = jax.random.split(key, 2)
         policy_params = self.policy_module.init(policy_key, sample_obs)
         value_params = self.value_module.init(value_key, sample_obs)
@@ -93,9 +101,14 @@ class MLPPolicyValue(Agent):
     @functools.partial(jax.jit, static_argnames=("self"))
     def policy(self, params: Params, obs: Any) -> Tuple[Any, Mapping[str, Any]]:
         logits = self.policy_module.apply(params["policy"], obs)
+        if isinstance(logits, tuple):
+            logits = logits[0]
         pi = Categorical(logits=logits)
         return pi, {}
 
     @functools.partial(jax.jit, static_argnames=("self"))
     def value(self, params: Params, obs: Any) -> jnp.ndarray:
-        return jnp.squeeze(self.value_module.apply(params["value"], obs), axis=-1)
+        value_out = self.value_module.apply(params["value"], obs)
+        if isinstance(value_out, tuple):
+            value_out = value_out[0]
+        return jnp.squeeze(value_out, axis=-1)

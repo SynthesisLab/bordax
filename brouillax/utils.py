@@ -1,9 +1,6 @@
 from itertools import product
 import numpy as np
 
-# import pygraphviz as pgv
-
-
 class POMDP:
     def __init__(self):
         self.discount = 1.0

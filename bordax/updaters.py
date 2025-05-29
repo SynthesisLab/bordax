@@ -4,14 +4,16 @@ import jax.numpy as jnp
 import optax
 from bordax.types import TrainingState
 
+from typing import Tuple, Any
+
 
 class Updater(ABC):
 
     @abstractmethod
-    def init(self, params): ...
+    def init(self, params) -> TrainingState: ...
 
     @abstractmethod
-    def __call__(self, agent, buffer, ts, key): ...
+    def __call__(self, agent, buffer, ts, key) -> Tuple[TrainingState, Any]: ...
 
 class SGDUpdate(Updater):
     def __init__(self, optimizer, loss_fn, num_sdg_steps: int = 1):
