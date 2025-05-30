@@ -39,8 +39,8 @@ class EnvAdapter(ABC):
     @abstractmethod
     def action_space(self) -> Space: ...
 
-    @abstractmethod
-    def obs_space(self) -> Space: ...
+    # @abstractmethod
+    # def obs_space(self) -> Space: ...
 
 
 class EnvGymnaxAdapter(EnvAdapter):
@@ -73,8 +73,8 @@ class EnvGymnaxAdapter(EnvAdapter):
     def action_space(self):
         return self.env.action_space()
 
-    def obs_space(self):
-        return self.env.observation_space(self.env_params)
+    # def obs_space(self):
+    #     return self.env.observation_space(self.env_params)
 
 
 def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:

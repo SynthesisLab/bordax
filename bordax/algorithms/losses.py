@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from abc import ABC, abstractmethod
-from typing import Mapping, Tuple, Callable
+from typing import Mapping, Tuple, Callable, Sequence
 
 
 class LossFn(ABC):
@@ -83,7 +83,7 @@ class EntropyLoss(LossFn):
 
 
 class CombinedLoss(LossFn):
-    def __init__(self, losses: Tuple[LossFn]):
+    def __init__(self, losses: Sequence[LossFn]):
         self.losses = losses
 
     def __call__(self, params, agent, batch, key, step):

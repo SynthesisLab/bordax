@@ -159,6 +159,11 @@ class BeliefPOMDP(gymnax.environments.environment.Environment):
         return self._env.action_space()
 
     def state_space(self, params: Optional[gymnax.EnvParams] = None):
+        if params is None:
+            params = self.default_params
+        # Ensure params is of type EnvParams from this module
+        if not isinstance(params, EnvParams):
+            params = EnvParams(**vars(params))
         return self._env.state_space(params)
 
     def __init__(self, env: POMDP):
