@@ -15,17 +15,17 @@ from functools import partial
 import functools
 
 @struct.dataclass
-class EnvState(gymnax.environments.EnvState):
+class EnvPOMDPState(gymnax.environments.EnvState):
     state: int
 
 @struct.dataclass
 class EnvBeliefState(gymnax.environments.EnvState):
     belief: jnp.ndarray
-    state: EnvState
+    state: EnvPOMDPState
 
 @struct.dataclass
 class EnvParams(gymnax.environments.EnvParams):
-    max_steps_in_episode: int = 100
+    max_steps_in_episode: int = 10
 
 
 class POMDP(gymnax.environments.environment.Environment):
@@ -108,9 +108,9 @@ class POMDP(gymnax.environments.environment.Environment):
         distr = distrax.Categorical(probs=self.obs_fun[0, state])
         obs = distr.sample(seed=obs_key)
 
-        return obs, EnvState(0, state)
+        return obs, EnvPOMDPState(0, state)
 
-    def step_env(self, key, state: EnvState, action, params):
+    def step_env(self, key, state: EnvPOMDPState, action, params):
         distr = distrax.Categorical(probs=self.transitions[state.state][action])
 
         state_key, obs_key = jax.random.split(key)
@@ -122,14 +122,14 @@ class POMDP(gymnax.environments.environment.Environment):
 
         reward = self.reward[action][state.state][new_state][obs]
 
-        new_state = EnvState(state.time + 1, new_state)
+        new_state = EnvPOMDPState(state.time + 1, new_state)
 
         done = self.is_terminal(new_state, params)
 
         return obs, new_state, reward, done, {}
 
     @partial(jax.jit, static_argnums=(0,))
-    def is_terminal(self, state: EnvState, params: EnvParams):
+    def is_terminal(self, state: EnvPOMDPState, params: EnvParams):
         done_steps = state.time >= params.max_steps_in_episode
         return done_steps
 

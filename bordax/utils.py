@@ -1,15 +1,19 @@
+from gymnax import EnvParams
 from bordax.agents.base import Agent
 from bordax.environments.utils import EnvAdapter
 from bordax.algorithms.base import Algorithm
 from bordax.types import PRNGKey
 
-from typing import Any, Mapping
+from typing import Any, Mapping, Tuple, Optional
 import functools
 
 from tqdm import tqdm
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+from typing import Tuple, Any
+
 
 # A trainer takes an environment, an agent architecture, and an algorithm (and a config)
 class Trainer:
@@ -19,7 +23,7 @@ class Trainer:
         eval_env: EnvAdapter,
         agent: Agent,
         algo: Algorithm,
-        config: Mapping[str, Any]
+        config: Mapping[str, Any],
     ):
         self.env = env
         self.eval_env = eval_env
@@ -37,37 +41,68 @@ class Trainer:
         assert self.eval_env.num_envs == 1
 
     @functools.partial(jax.jit, static_argnames=("self"))
-    def evaluate(self, key: PRNGKey, params) -> jnp.ndarray:
+    def evaluate(self, key: PRNGKey, params) -> Mapping[str, jnp.ndarray]:
+
+        max_steps = self.eval_env.env_params.max_steps_in_episode
+
         def evaluate_one_episode(episode_key):
             run_key, reset_key = jax.random.split(episode_key)
             obs, env_state = self.eval_env.reset(reset_key)
 
-            def step(carry):
-                step_key, obs, state, total_reward, done = carry
+            def step(
+                carry: Tuple[PRNGKey, jnp.ndarray, Any, jnp.ndarray], _: Any
+            ) -> Tuple[
+                Tuple[PRNGKey, jnp.ndarray, Any, jnp.ndarray],
+                Tuple[jnp.ndarray, Any, jnp.ndarray, jnp.ndarray, jnp.ndarray, Any],
+            ]:
+                step_key, obs, state, done = carry
                 step_key, action_key, env_key = jax.random.split(step_key, 3)
+
                 action, _ = self.agent.action(
                     params, obs, action_key, is_deterministic=True
                 )
-                n_obs, n_state, reward, done, _ = self.eval_env.step(
+                n_obs, n_state, reward, done, info = self.eval_env.step(
                     env_key, state, action
                 )
-                return key, n_obs, n_state, total_reward + reward, done
 
-            def cond(carry):
-                _, _, _, _, done = carry
-                return jnp.logical_not(jnp.any(done))
+                # Ensure reward and done are jnp.ndarray
+                reward = jnp.asarray(reward)
+                done = jnp.asarray(done)
 
-            _, _, _, total_reward, _ = jax.lax.while_loop(
-                cond, step, (run_key, obs, env_state, jnp.array([0.0]), jnp.array([False]))
+                new_carry = (step_key, n_obs, n_state, done)
+                output = (obs, state, action, reward, done, info)
+
+                return new_carry, output
+
+            (final_carry, traj) = jax.lax.scan(
+                f=step,
+                init=(run_key, obs, env_state, jnp.array([False])),
+                xs=None,
+                length=max_steps,
             )
 
-            return total_reward
+            obs_seq, state_seq, action_seq, reward_seq, done_seq, info_seq = traj
+            print(obs_seq.shape)
+            obs_seq = jnp.squeeze(obs_seq, axis=1)
+            state_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), state_seq)
+            action_seq = jnp.squeeze(action_seq, axis=1)
+            reward_seq = jnp.squeeze(reward_seq, axis=1)
+            done_seq = jnp.squeeze(done_seq, axis=1)
+            info_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), info_seq)
+
+            return {
+                "observations": obs_seq,
+                "states": state_seq,
+                "actions": action_seq,
+                "rewards": reward_seq,
+                "done": done_seq,
+                "info": info_seq
+            }
 
         keys = jax.random.split(key, self.config["evaluation_episodes"])
+        data = jax.vmap(evaluate_one_episode)(keys)
 
-        rewards = jax.vmap(evaluate_one_episode)(keys)
-
-        return rewards
+        return data
 
     def run(self, key: PRNGKey):
         if self.config["debug"]:
@@ -90,7 +125,8 @@ class Trainer:
             )
             train_step = jax.jit(train_step_fixed)
 
-        evaluations = []
+        epoch_rollouts = []
+        values = []
 
         for ckpt in range(self.config["num_checkpoints"]):
             if self.env.is_jittable:
@@ -109,13 +145,13 @@ class Trainer:
                         self.last_env_state,
                     )
             else:
-                raise NotImplementedError
+                raise NotImplementedError(
+                    "Non-jittable environments are not supported yet."
+                )
 
-            rewards = self.evaluate(evaluate_key, self.training_state.params)
-            rewards = jnp.squeeze(rewards, axis=-1)
-            evaluations.append(rewards)
+            epoch_rollouts.append(self.evaluate(evaluate_key, self.training_state.params))
 
             if pbar is not None:
                 pbar.update(1)
 
-        return metrics, jnp.array(evaluations)
+        return metrics, (epoch_rollouts)

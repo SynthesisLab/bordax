@@ -16,12 +16,12 @@ if __name__ == "__main__":
         "num_checkpoints": 200,
         "epochs_per_checkpoint": 1,
         "evaluation_episodes": 32,
-        "debug": False,
+        "debug": True,
         "save_model": False,
         # "log_interval": 10,
     }
 
-    agent_config = {"policy_layers": [10,],
+    agent_config = {"policy_layers": [32,32],
                     "value_layers": [32, 32,]}
     env_config = {}
     algo_config = {"rollout_length": 1024, 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
                    "num_sdg_steps": 1,
                    }
 
-    env_name = "brouillax/tiger.aaai"  # Replace with your environment
+    env_name = "brouillax/revealing.tiger"  # Replace with your environment
     agent_name = "mlp"  # Replace with your agent
     algo_name= "ppo" # Replace with your algorithm
 
@@ -39,21 +39,57 @@ if __name__ == "__main__":
     agent = make_agent(agent_name, agent_config)
     algorithm = make_algo(algo_name, algo_config)  # Replace with your algorithm
 
-
     # Initialize the trainer
     trainer = Trainer(env, eval_env, agent, algorithm, training_config)
     key = jax.random.PRNGKey(0)  # Random key for JAX
     trainer.init(key)
 
-
     start_time = time.time()
-    metrics, rewards = trainer.run(key)
-    rewards.block_until_ready()
+    metrics, data = trainer.run(key)
+    rollouts = data[0]
     end_time = time.time()
     print(f"Training time: {end_time - start_time}")
 
-    # plot the rewards
-    rewards = np.array(rewards)
-    plt.plot(np.arange(len(rewards)), rewards.mean(axis=1))
+    print(f"{rollouts["observations"].shape=}")
+    print(f"{rollouts["states"]=}")
+    print(f"{rollouts["actions"]=}")
+    print(f"{rollouts["rewards"].shape=}")
+    print(f"{rollouts["done"].shape=}")
+    print(f"{rollouts["info"]}")
 
-    plt.show()
+    # # # plot the rewards
+    # rewards = np.array(rewards)
+    # plt.plot(np.arange(len(rewards)), rewards.mean(axis=1))
+    # plt.show()
+
+    # values = np.array(values)
+
+    # T, N = np.array(values).shape
+
+    # x = np.linspace(0, 1, N)         # input axis
+    # t = np.arange(T)                 # time axis (e.g., checkpoint indices)
+    # X, T_ = np.meshgrid(x, t)
+
+    # # Create the figure and 3D axes
+    # fig = plt.figure(figsize=(10, 6))
+    # ax = fig.add_subplot(111, projection='3d')
+
+    # # Plot the surface
+    # surf = ax.plot_surface(X, T_, values, cmap='viridis', edgecolor='none')
+
+    # # Labels and formatting
+    # ax.set_xlabel('Input x ∈ [0, 1]')
+    # ax.set_ylabel('Training step')
+    # ax.set_zlabel('Model output')
+    # ax.set_title('3D Surface of Model Output Over Time')
+
+    # # Add a color bar
+    # fig.colorbar(surf, shrink=0.5, aspect=10, label='Output Value')
+
+    # plt.tight_layout()
+    # plt.show()
+
+    # plt.imshow(np.array(values), aspect='auto', cmap='viridis', origin='lower',)
+    # plt.colorbar(label="Model output")
+
+    # plt.show()

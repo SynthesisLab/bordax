@@ -27,6 +27,8 @@ gymnasium_supported_envs = []
 class EnvAdapter(ABC):
     is_jittable: bool
     num_envs: int
+    env: Any
+    env_params: Any
 
     @abstractmethod
     def reset(self, key: PRNGKey) -> Tuple[EnvObs, EnvState]: ...
@@ -48,13 +50,16 @@ class EnvGymnaxAdapter(EnvAdapter):
         self.is_jittable = True
         self.num_envs = num_envs
 
-        if env_name.split("/")[0] == "gymnax":
-            self.env, self.env_params = gymnax.make(env_name.split("/")[1])
-        elif env_name.split("/")[0] == "brouillax":
-            self.env, self.env_params = brouillax.make(env_name.split("/")[1])
+        prefix, name = env_name.split("/", 1)
+        if prefix == "gymnax":
+            self.env, self.env_params = gymnax.make(name)
+        elif prefix == "brouillax":
+            self.env, self.env_params = brouillax.make(name)
+        else:
+            raise ValueError(f"Unknown environment prefix: {prefix}")
 
         self.reset_v = jax.vmap(self.env.reset, in_axes=(0,))
-        self.step_v = jax.vmap(self.env.step, in_axes=(0, 0, 0))  # be careful here
+        self.step_v = jax.vmap(self.env.step, in_axes=(0, 0, 0))
 
     @functools.partial(jax.jit, static_argnums=(0,))
     def reset(self, key: PRNGKey) -> Tuple[EnvState, Any]:
