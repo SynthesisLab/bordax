@@ -7,24 +7,31 @@ from brouillax.utils import POMDP as prePOMDP
 from brouillax.parser import parse
 import distrax
 
-from flax import struct
+from typing import TYPE_CHECKING, Optional
 
-from typing import Optional
+if TYPE_CHECKING:
+    from dataclasses import dataclass
+else:
+    from chex import dataclass
 
 from functools import partial
 import functools
 
-@struct.dataclass
-class EnvPOMDPState(gymnax.environments.EnvState):
+@dataclass(frozen=True)
+class EnvState():
+    time:int
+
+@dataclass(frozen=True)
+class EnvPOMDPState(EnvState):
     state: int
 
-@struct.dataclass
-class EnvBeliefState(gymnax.environments.EnvState):
+@dataclass(frozen=True)
+class EnvBeliefState(EnvState):
     belief: jnp.ndarray
     state: EnvPOMDPState
 
-@struct.dataclass
-class EnvParams(gymnax.environments.EnvParams):
+@dataclass(frozen=True)
+class EnvParams():
     max_steps_in_episode: int = 10
 
 
@@ -108,7 +115,7 @@ class POMDP(gymnax.environments.environment.Environment):
         distr = distrax.Categorical(probs=self.obs_fun[0, state])
         obs = distr.sample(seed=obs_key)
 
-        return obs, EnvPOMDPState(0, state)
+        return obs, EnvPOMDPState(time=0, state=state)
 
     def step_env(self, key, state: EnvPOMDPState, action, params):
         distr = distrax.Categorical(probs=self.transitions[state.state][action])
@@ -122,7 +129,7 @@ class POMDP(gymnax.environments.environment.Environment):
 
         reward = self.reward[action][state.state][new_state][obs]
 
-        new_state = EnvPOMDPState(state.time + 1, new_state)
+        new_state = EnvPOMDPState(time=state.time + 1, state=new_state)
 
         done = self.is_terminal(new_state, params)
 
@@ -147,7 +154,7 @@ class BeliefPOMDP(gymnax.environments.environment.Environment):
     def name(self) -> str:
         return f"broullax/{self._env.name}-belief"
 
-    def observation_space(self, params: gymnax.EnvParams):
+    def observation_space(self, params: EnvParams):
         return gymnax.environments.spaces.Box(
             low=0, high=1, shape=(self._env.n_states,), dtype=jnp.float32
         )
@@ -155,10 +162,10 @@ class BeliefPOMDP(gymnax.environments.environment.Environment):
     def num_actions(self):
         return self._env.num_actions
 
-    def action_space(self, params: Optional[gymnax.EnvParams] = None):
+    def action_space(self, params: Optional[EnvParams] = None):
         return self._env.action_space()
 
-    def state_space(self, params: Optional[gymnax.EnvParams] = None):
+    def state_space(self, params: Optional[EnvParams] = None):
         if params is None:
             params = self.default_params
         # Ensure params is of type EnvParams from this module
@@ -205,7 +212,7 @@ class BeliefPOMDP(gymnax.environments.environment.Environment):
             key, state.state, action, self.default_params
         )
         new_belief = self._belief(obs, action, state.belief)
-        return new_belief, EnvBeliefState(new_state.time, new_belief, new_state), reward, done, {"signal": obs}
+        return new_belief, EnvBeliefState(time=new_state.time, belief=new_belief, state=new_state), reward, done, {"signal": obs}
 
     @functools.partial(jax.jit, static_argnums=(0,))
     def _belief(self, obs, action, current_belief):
