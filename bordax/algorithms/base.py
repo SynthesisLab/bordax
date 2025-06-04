@@ -93,12 +93,12 @@ def ppo_algo(
     rollout_length: int = 1024,
     gamma: float = 0.99,
     _lambda: float = 0.85,
-    lr: float = 8e-4,
+    lr: float = 0.001,
     clip_schedule=lambda _: 0.2,
     vf_schedule=lambda _: 0.5,
-    ent_schedule=lambda _: 0.0001,
+    ent_schedule=lambda _: 0.01,
     num_minibatches=16,
-    num_sdg_steps=1,
+    num_sdg_steps=5,
     **kwargs
 ):
 
