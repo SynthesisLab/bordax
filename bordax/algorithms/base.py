@@ -41,7 +41,6 @@ class Algorithm(NamedTuple):
         params = agent.init(key, sample_obs, env.action_space())
         return self.updater.init(params)
 
-    @functools.partial(jax.jit, static_argnames=("self", "agent", "env"))
     def collect(
         self,
         key: PRNGKey,

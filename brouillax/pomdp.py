@@ -17,21 +17,25 @@ else:
 from functools import partial
 import functools
 
+
 @dataclass(frozen=True)
-class EnvState():
-    time:int
+class EnvState:
+    time: int
+
 
 @dataclass(frozen=True)
 class EnvPOMDPState(EnvState):
     state: int
+
 
 @dataclass(frozen=True)
 class EnvBeliefState(EnvState):
     belief: jnp.ndarray
     state: EnvPOMDPState
 
+
 @dataclass(frozen=True)
-class EnvParams():
+class EnvParams:
     max_steps_in_episode: int = 10
 
 
@@ -40,7 +44,7 @@ class POMDP(gymnax.environments.environment.Environment):
     @property
     def default_params(self) -> EnvParams:
         return EnvParams()
-    
+
     @property
     def name(self) -> str:
         return f"brouillax/{self._name}-obs"
@@ -51,10 +55,10 @@ class POMDP(gymnax.environments.environment.Environment):
 
     def action_space(self, params: Optional[EnvParams] = None):
         return gymnax.environments.spaces.Discrete(self.n_actions)
-    
+
     def observation_space(self, params: EnvParams):
         return gymnax.environments.spaces.Discrete(self.n_obs)
-    
+
     def state_space(self, params: EnvParams):
         return gymnax.environments.spaces.Discrete(self.n_states)
 
@@ -205,14 +209,24 @@ class BeliefPOMDP(gymnax.environments.environment.Environment):
         _, state = self._env.reset(key, self.default_params)
         current_belief = self.start_belief
 
-        return current_belief, EnvBeliefState(time = 0, belief=current_belief, state=state)
+        return current_belief, EnvBeliefState(
+            time=0, belief=current_belief, state=state
+        )
 
     def step_env(self, key, state: EnvBeliefState, action, params: EnvParams):
         obs, new_state, reward, done, _ = self._env.step(
             key, state.state, action, self.default_params
         )
         new_belief = self._belief(obs, action, state.belief)
-        return new_belief, EnvBeliefState(time=new_state.time, belief=new_belief, state=new_state), reward, done, {"signal": obs}
+        return (
+            jax.lax.stop_gradient(new_belief),
+            jax.lax.stop_gradient(
+                EnvBeliefState(time=new_state.time, belief=new_belief, state=new_state)
+            ),
+            reward,
+            done,
+            {"signal": obs},
+        )
 
     @functools.partial(jax.jit, static_argnums=(0,))
     def _belief(self, obs, action, current_belief):

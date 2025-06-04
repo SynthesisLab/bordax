@@ -15,13 +15,13 @@ if __name__ == "__main__":
     training_config = {
         "num_checkpoints": 200,
         "epochs_per_checkpoint": 1,
-        "evaluation_episodes": 32,
+        "evaluation_episodes": 8,
         "debug": True,
         "save_model": False,
         # "log_interval": 10,
     }
 
-    agent_config = {"policy_layers": [32,32],
+    agent_config = {"policy_layers": [10],
                     "value_layers": [32, 32,]}
     env_config = {}
     algo_config = {"rollout_length": 1024, 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
                    "num_sdg_steps": 1,
                    }
 
-    env_name = "brouillax/revealing.tiger"  # Replace with your environment
+    env_name = "gymnax/CartPole-v1"  # Replace with your environment
     agent_name = "mlp"  # Replace with your agent
     algo_name= "ppo" # Replace with your algorithm
 
@@ -50,12 +50,21 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Training time: {end_time - start_time}")
 
-    print(f"{rollouts["observations"].shape=}")
-    print(f"{rollouts["states"]=}")
-    print(f"{rollouts["actions"]=}")
-    print(f"{rollouts["rewards"].shape=}")
-    print(f"{rollouts["done"].shape=}")
-    print(f"{rollouts["info"]}")
+    # print(f"{rollouts["obs"].shape=}")
+    # print(f"{rollouts["state"]=}")
+    # print(f"{rollouts["action"]=}")
+    # print(f"{rollouts["reward"][:10]=}")
+    # print(f"{rollouts["done"][:10]=}")
+    # print(f"{rollouts["info"]}")
+
+    first_done_indices = np.argmax(rollouts["done"], axis=1)
+    cum_sum = np.cumsum(rollouts["reward"], axis=1)
+    first_rewards = cum_sum[
+        np.arange(cum_sum.shape[0]),
+        first_done_indices,
+    ]
+    print(first_rewards)
+    print(np.average(first_rewards))
 
     # # # plot the rewards
     # rewards = np.array(rewards)

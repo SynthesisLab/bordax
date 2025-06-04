@@ -1,16 +1,15 @@
 import jax
 import jax.numpy as jnp
-import flax
 import chex
 
 from abc import ABC, abstractmethod
 import functools
 
 import gymnax
-import gymnax.environments.spaces
 import brouillax
+import gymnasium
 
-from typing import Any, Tuple, Mapping, Dict
+from typing import TYPE_CHECKING, Any, Tuple, Mapping, Dict
 from bordax.types import PRNGKey
 
 EnvState = Any
@@ -20,9 +19,17 @@ Space = Any
 gymnax_supported_envs = ["CartPole-v1"]
 gymnasium_supported_envs = []
 
+if TYPE_CHECKING:
+    from dataclasses import dataclass
+else:
+    from chex import dataclass
 
 # we suppose that the environment is vectorised *by default*.
 # if the n is not given, then it's one
+
+@dataclass(frozen=True)
+class EnvParams():
+    max_steps_in_episode: int
 
 class EnvAdapter(ABC):
     is_jittable: bool
@@ -41,8 +48,8 @@ class EnvAdapter(ABC):
     @abstractmethod
     def action_space(self) -> Space: ...
 
-    # @abstractmethod
-    # def obs_space(self) -> Space: ...
+    @abstractmethod
+    def obs_space(self) -> Space: ...
 
 
 class EnvGymnaxAdapter(EnvAdapter):
@@ -78,8 +85,34 @@ class EnvGymnaxAdapter(EnvAdapter):
     def action_space(self):
         return self.env.action_space()
 
-    # def obs_space(self):
-    #     return self.env.observation_space(self.env_params)
+    def obs_space(self):
+        return self.env.observation_space(self.env_params)
+
+class EnvGymnasiumAdapter(EnvAdapter):
+    def __init__(self, env_name: str, num_envs: int = 1):
+        self.is_jittable = False
+        self.num_envs = num_envs
+
+        prefix, name = env_name.split("/", 1)
+        if prefix == "gymnasium":
+            self.env = gymnasium.make_vec(name, num_envs=self.num_envs)
+
+        self.env_params = EnvParams(max_steps_in_episode=self.env.max_episode_steps)
+    def reset(self, key: PRNGKey):
+        seed = jax.random.key_data(key)[1].item()
+        obs, info = self.env.reset(seed=seed)
+        return obs, obs
+    
+    def step(self, key: PRNGKey, state: Any, action: Any):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        done = terminated | truncated
+        return obs, obs, reward, done, info
+    
+    def action_space(self):
+        return self.env.single_action_space
+    
+    def obs_space(self):
+        return self.env.single_observation_space
 
 
 def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:
@@ -89,7 +122,7 @@ def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:
         if env_name.split("/")[0] in ["gymnax", "brouillax"]:
             return EnvGymnaxAdapter(env_name, num_envs)
         elif env_name.split("/")[0] == "gymnasium":
-            raise NotImplementedError("Gymnasium environments are not yet supported.")
+            return EnvGymnasiumAdapter(env_name)
         else:
             raise ValueError(f"Unknown environment prefix: {env_name.split("/")[0]}")
     else:

@@ -41,8 +41,7 @@ class Trainer:
         assert self.eval_env.num_envs == 1
 
     @functools.partial(jax.jit, static_argnames=("self"))
-    def evaluate(self, key: PRNGKey, params) -> Mapping[str, jnp.ndarray]:
-
+    def evaluate_jittable(self, keys, params):
         max_steps = self.eval_env.env_params.max_steps_in_episode
 
         def evaluate_one_episode(episode_key):
@@ -91,17 +90,71 @@ class Trainer:
             info_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), info_seq)
 
             return {
-                "observations": obs_seq,
-                "states": state_seq,
-                "actions": action_seq,
-                "rewards": reward_seq,
+                "obs": obs_seq,
+                "state": state_seq,
+                "action": action_seq,
+                "reward": reward_seq,
                 "done": done_seq,
-                "info": info_seq
+                "info": info_seq,
             }
 
-        keys = jax.random.split(key, self.config["evaluation_episodes"])
         data = jax.vmap(evaluate_one_episode)(keys)
+        return data
 
+    def evaluate_non_jittable(self, keys, params):
+        num_steps = self.eval_env.env_params.max_steps_in_episode
+        num_envs = len(keys)
+        env_spec = dict(
+            obs_shape=self.env.obs_space().shape, action_shape=self.env.action_space().shape
+        )
+        buffer = {
+            "obs": np.zeros((num_envs, num_steps) + env_spec["obs_shape"]),
+            "state": np.zeros((num_envs, num_steps) + env_spec["obs_shape"]),
+            "action": np.zeros((num_envs, num_steps) + env_spec["action_shape"]),
+            "reward": np.zeros((num_envs, num_steps)),
+            "done": np.zeros((num_envs, num_steps), dtype=np.bool),
+            "info": {"logp": np.zeros((num_envs, num_steps))},
+        }
+
+        for episode, key in enumerate(keys):
+            run_key, reset_key = jax.random.split(key, 2)
+
+            obs, env_state = self.eval_env.reset(reset_key)
+
+            for step in range(num_steps):
+                action, _ = self.agent.action(
+                    params, obs, run_key, is_deterministic=True
+                )
+                n_obs, n_state, reward, done, info = self.eval_env.step(
+                    run_key, env_state, np.asarray(action)
+                )
+
+                # Ensure reward and done are numpy arrays
+                reward = np.asarray(reward)
+                done = np.asarray(done)
+
+                buffer["obs"][episode, step] = obs
+                buffer["state"][episode, step] = env_state
+                buffer["action"][episode, step] = action[0]
+                buffer["reward"][episode, step] = reward
+                buffer["done"][episode, step] = done
+                for key in info:
+                    buffer["info"][key][episode, step] = info[key]
+
+                obs = n_obs
+                env_state = n_state
+
+                if done:
+                    break
+
+        return buffer
+
+    def evaluate(self, key: PRNGKey, params):
+        evaluation_keys = jax.random.split(key, self.config["evaluation_episodes"])
+        if self.env.is_jittable:
+            data = self.evaluate_jittable(evaluation_keys, params)
+        else:
+            data = self.evaluate_non_jittable(evaluation_keys, params)
         return data
 
     def run(self, key: PRNGKey):
@@ -145,11 +198,26 @@ class Trainer:
                         self.last_env_state,
                     )
             else:
-                raise NotImplementedError(
-                    "Non-jittable environments are not supported yet."
-                )
+                for epoch in range(self.config["epochs_per_checkpoint"]):
+                    (
+                        trainng_key,
+                        self.training_state,
+                        _,
+                        self.last_obs,
+                        self.last_env_state,
+                    ), metrics = self.algo.train_step(
+                        self.env,
+                        self.agent,
+                        training_key,
+                        self.training_state,
+                        None,
+                        self.last_obs,
+                        self.last_env_state,
+                    )
 
-            epoch_rollouts.append(self.evaluate(evaluate_key, self.training_state.params))
+            epoch_rollouts.append(
+                self.evaluate(evaluate_key, self.training_state.params)
+            )
 
             if pbar is not None:
                 pbar.update(1)
