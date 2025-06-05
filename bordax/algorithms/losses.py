@@ -12,12 +12,13 @@ class LossFn(ABC):
     @abstractmethod
     def __call__(
         self,
-        agent: Agent,
         params: Params,
+        agent: Agent,
         batch: Mapping[str, jnp.ndarray],
         key: PRNGKey,
         step: jnp.ndarray,
     ) -> Tuple[jnp.ndarray, Mapping[str, jnp.ndarray]]: ...
+
 
 class SurrogateLoss(LossFn):
 
@@ -92,11 +93,10 @@ class CombinedLoss(LossFn):
         for loss in self.losses:
             loss_value, loss_metrics = loss(params, agent, batch, key, step)
             total_loss += loss_value
-            metrics.update(
-                {k: v for k, v in loss_metrics.items() if k not in metrics}
-            )
+            metrics.update({k: v for k, v in loss_metrics.items() if k not in metrics})
         metrics["total_loss"] = total_loss
         return total_loss, metrics
+
 
 class PPOLoss(LossFn):
     def __init__(

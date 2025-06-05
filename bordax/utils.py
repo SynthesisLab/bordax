@@ -167,7 +167,7 @@ class Trainer:
             "Total number of timesteps: ",
             self.config["num_checkpoints"]
             * self.config["epochs_per_checkpoint"]
-            * 1024,
+            * self.algo.collector.rollout_len,
         )
 
         key, training_key, evaluate_key = jax.random.split(key, 3)

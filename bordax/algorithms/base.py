@@ -13,7 +13,12 @@ from bordax.collectors import Collector
 from bordax.updaters import Updater
 
 from bordax.algorithms.losses import PPOLoss
-from bordax.batchbuilders import FullBufferBatch, MiniBatch, ComposedBatchBuilder
+from bordax.batchbuilders import (
+    FullBufferBatch,
+    MiniBatch,
+    NormalizeAdvantages,
+    ComposedBatchBuilder,
+)
 from bordax.collectors import (
     OnPolicyCollector,
     EpsGreedyCollector,
@@ -52,9 +57,7 @@ class Algorithm(NamedTuple):
     ):
         return self.collector(key, env, obs, env_state, agent, ts.params)
 
-    @functools.partial(
-        jax.jit, static_argnames=("self", "agent"), donate_argnames=("batch")
-    )
+    @functools.partial(jax.jit, static_argnames=("self", "agent"))
     def update(self, agent: Agent, batch: Any, ts: TrainingState, key: PRNGKey):
         return self.updater(
             agent,
@@ -79,10 +82,6 @@ class Algorithm(NamedTuple):
             collect_key, env, obs, env_state, agent, ts
         )
 
-        buffer["advantages"] = (buffer["advantages"] - buffer["advantages"].mean()) / (
-            buffer["advantages"].std() + 1e-8
-        ) # TODO: make normalization (and the calculation) optional
-
         batch = self.batch_builder(batch_key, buffer)
         ts, metrics = self.update(agent, batch, ts, update_key)
 
@@ -98,7 +97,7 @@ def ppo_algo(
     vf_schedule=lambda _: 0.5,
     ent_schedule=lambda _: 0.01,
     num_minibatches=16,
-    num_sdg_steps=5,
+    num_sgd_steps=1,
     **kwargs
 ):
 
@@ -110,13 +109,14 @@ def ppo_algo(
         ComposedBatchBuilder(
             (
                 FullBufferBatch(rollout_length, 1),
-                MiniBatch(rollout_length // num_minibatches),
+                MiniBatch(num_minibatches),
+                NormalizeAdvantages(),
             ),
         ),
         SGDUpdate(
             optimizer=optax.chain(optax.clip_by_global_norm(0.5), optax.adam(lr)),
             loss_fn=PPOLoss(clip_schedule, ent_schedule, vf_schedule),
-            num_sdg_steps=num_sdg_steps,
+            num_sgd_steps=num_sgd_steps,
         ),
     )
 

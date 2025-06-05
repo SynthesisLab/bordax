@@ -97,7 +97,7 @@ class EnvGymnasiumAdapter(EnvAdapter):
         if prefix == "gymnasium":
             self.env = gymnasium.make_vec(name, num_envs=self.num_envs)
 
-        self.env_params = EnvParams(max_steps_in_episode=self.env.max_episode_steps)
+        self.env_params = EnvParams(max_steps_in_episode=self.env.spec.max_episode_steps)
     def reset(self, key: PRNGKey):
         seed = jax.random.key_data(key)[1].item()
         obs, info = self.env.reset(seed=seed)

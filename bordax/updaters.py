@@ -16,10 +16,10 @@ class Updater(ABC):
     def __call__(self, agent, buffer, ts, key) -> Tuple[TrainingState, Any]: ...
 
 class SGDUpdate(Updater):
-    def __init__(self, optimizer, loss_fn, num_sdg_steps: int = 1):
+    def __init__(self, optimizer, loss_fn, num_sgd_steps: int = 1):
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        self.num_sdg_steps = num_sdg_steps
+        self.num_sgd_steps = num_sgd_steps
 
     def init(self, params):
         return TrainingState(optimizer_state=self.optimizer.init(params), params=params, step=jnp.array(0))
@@ -29,7 +29,7 @@ class SGDUpdate(Updater):
         vg_loss = jax.value_and_grad(self.loss_fn, has_aux=True)
         minibatches = buffer
                     
-        def sdg_step(carry, unused):
+        def sgd_step(carry, unused):
             optimizer_state, params, step_key = carry 
             
             def minibatch_step(carry, mini):
@@ -48,6 +48,6 @@ class SGDUpdate(Updater):
 
             return (new_optimizer_state, new_params, key), metrics
         
-        (new_optimizer_state, new_params, _), metrics = jax.lax.scan(sdg_step, (ts.optimizer_state, ts.params, key), length=self.num_sdg_steps) 
+        (new_optimizer_state, new_params, _), metrics = jax.lax.scan(sgd_step, (ts.optimizer_state, ts.params, key), length=self.num_sgd_steps) 
 
         return TrainingState(new_optimizer_state, new_params, ts.step + 1), metrics

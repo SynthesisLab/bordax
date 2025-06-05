@@ -15,26 +15,32 @@ if __name__ == "__main__":
     do_plots = True
 
     training_config = {
-        "num_checkpoints": 200,
-        "epochs_per_checkpoint": 1,
-        "evaluation_episodes": 32,
+        "num_checkpoints": 100,
+        "epochs_per_checkpoint": 2,
+        "evaluation_episodes": 16,
         "debug": True,
+        "timing": True,
         "save_model": False,
         # "log_interval": 10,
     }
 
-    agent_config = {"policy_layers": [32, 32, 32],
-                    "value_layers": [32, 32, 32,]}
+    agent_config = {
+        "policy_layers": [128, 64, 32],
+        "value_layers": [128, 64, 32],
+    }
     env_config = {}
-    algo_config = {"rollout_length": 1024, 
-                   "gamma": 0.99,
-                   "num_minibatches": 16,
-                   "num_sdg_steps": 1,
-                   }
+    algo_config = {
+        "lr": 1e-4,
+        "rollout_length": 1024,
+        "gamma": 0.99,
+        "_lambda": 0.95,
+        "num_minibatches": 16,
+        "num_sgd_steps": 10,
+    }
 
-    env_name = "gymnax/CartPole-v1"  # Replace with your environment
+    env_name = "gymnasium/LunarLander-v3"  # Replace with your environment
     agent_name = "mlp"  # Replace with your agent
-    algo_name= "ppo" # Replace with your algorithm
+    algo_name = "ppo"  # Replace with your algorithm
 
     env = make_env(env_name)
     eval_env = make_env(env_name, num_envs=1)
@@ -59,9 +65,7 @@ if __name__ == "__main__":
             np.arange(cum_sum.shape[0]),
             first_done_indices,
         ]
-        average_evaluation_rewards.append(
-            first_rewards.mean()
-        )
+        average_evaluation_rewards.append(first_rewards.mean())
 
     if do_plots:
         plt.plot(average_evaluation_rewards)

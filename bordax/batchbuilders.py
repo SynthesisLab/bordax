@@ -39,19 +39,40 @@ class FullBufferBatch(BatchBuilder):
         return batch    
 
 class MiniBatch(BatchBuilder):
-    def __init__(self, mini_batch_size: int):
-        self.mini_batch_size = mini_batch_size
+    def __init__(self, num_minibatches: int):
+        self.num_minibatches = num_minibatches
 
     def __call__(
         self, key: PRNGKey, buffer: Any
     ) -> Tuple[PRNGKey, Mapping[str, jnp.ndarray]]:
-        
+
         minibatches = jax.tree_util.tree_map(
-            lambda x: x.reshape((self.mini_batch_size, -1) + x.shape[1:]), buffer
+            lambda x: x.reshape((self.num_minibatches, -1) + x.shape[1:]), buffer
         )
 
         return minibatches
-    
+
+
+class NormalizeAdvantages(BatchBuilder):
+    """Normalizes advantages per minibatch in a batch of minibatches."""
+
+    def __init__(self, eps: float = 1e-8):
+        self.eps = eps
+
+    def __call__(self, key: PRNGKey, buffer: Any) -> Any:
+
+        def normalize_minibatch(minibatch_data):
+            advantages = minibatch_data["advantages"]
+            adv_mean = jnp.mean(advantages)
+            adv_std = jnp.std(advantages)
+            normalized_advantages = (advantages - adv_mean) / (adv_std + self.eps)
+
+            return {**minibatch_data, "advantages": normalized_advantages}
+
+        normalized_buffer = jax.vmap(normalize_minibatch)(buffer)
+
+        return normalized_buffer
+
 class ComposedBatchBuilder(BatchBuilder):
     def __init__(self, batch_builders: Sequence[BatchBuilder]):
         self.batch_builders = batch_builders
