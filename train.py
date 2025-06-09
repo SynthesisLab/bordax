@@ -26,10 +26,13 @@ if __name__ == "__main__":
         # "log_interval": 10,
     }
 
-    agent_config = {
+    agent_config_mlp = {
         "policy_layers": [128, 64, 32],
         "value_layers": [128, 64, 32],
     }
+    agent_config_dt = {"tree_depth": 4, "value_layers": [128, 64, 32]}
+    agent_config_bool = {"n": 4, "value_layers": [128, 64, 32]}
+
     env_config = {}
     algo_config = {
         "lr": 1e-4,
@@ -41,12 +44,12 @@ if __name__ == "__main__":
     }
 
     env_name = "gymnasium/LunarLander-v3"  # Replace with your environment
-    agent_name = "mlp"  # Replace with your agent
+    agent_name = "mlp/dt"  # Replace with your agent
     algo_name = "ppo"  # Replace with your algorithm
 
     env = make_env(env_name, 1)
     eval_env = make_env(env_name, num_envs=1)
-    agent = make_agent(agent_name, agent_config)
+    agent = make_agent(agent_name, env, agent_config_dt)
     algorithm = make_algo(algo_name, algo_config)  # Replace with your algorithm
 
     # Initialize the trainer
@@ -77,7 +80,7 @@ if __name__ == "__main__":
     # save the parameters
     if training_config["save_model"]:
         export = {"agent": agent, "params": best_parameters}
-        with open('full_model.pkl', 'wb') as f:
+        with open("full_model.pkl", "wb") as f:
             pickle.dump(export, f)
         print("Model saved as 'best_model.pkl'")
 

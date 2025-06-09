@@ -43,7 +43,7 @@ class Algorithm(NamedTuple):
         self, agent: Agent, key: PRNGKey, sample_obs: Any, env: EnvAdapter
     ) -> TrainingState:
 
-        params = agent.init(key, sample_obs, env.action_space())
+        params = agent.init(key, sample_obs)
         return self.updater.init(params)
 
     def collect(
