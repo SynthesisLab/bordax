@@ -18,7 +18,7 @@ if __name__ == "__main__":
     do_plots = True
 
     training_config = {
-        "num_checkpoints": 200,
+        "num_checkpoints": 400,
         "epochs_per_checkpoint": 1,
         "evaluation_episodes": 32,
         "debug": True,
@@ -33,10 +33,10 @@ if __name__ == "__main__":
     env_config = {}
     algo_config = {
         "lr": 1e-4,
-        "rollout_length": 1024,
+        "rollout_length": 2048,
         "gamma": 0.99,
         "_lambda": 0.95,
-        "num_minibatches": 16,
+        "num_minibatches": 32,
         "num_sgd_steps": 10,
     }
 

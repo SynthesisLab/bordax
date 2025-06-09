@@ -106,6 +106,14 @@ class MLPPolicyValue(Agent):
         pi = Categorical(logits=logits)
         return pi, {}
 
+    def policy_activations(self, params, obs):
+        logits, state = self.policy_module.apply(params["policy"], obs, capture_intermediates=True, mutable=["intermediates"])
+        intermediates = state["intermediates"]
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        pi = Categorical(logits=logits)
+        return pi, intermediates
+
     @functools.partial(jax.jit, static_argnames=("self"))
     def value(self, params: Params, obs: Any) -> jnp.ndarray:
         value_out = self.value_module.apply(params["value"], obs)
