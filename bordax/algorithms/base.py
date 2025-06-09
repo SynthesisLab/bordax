@@ -94,7 +94,7 @@ def ppo_algo(
     _lambda: float = 0.85,
     lr: float = 0.001,
     clip_schedule=lambda _: 0.2,
-    vf_schedule=lambda _: 0.5,
+    vf_schedule=lambda _: 0.25,
     ent_schedule=lambda _: 0.01,
     num_minibatches=16,
     num_sgd_steps=1,
@@ -110,12 +110,16 @@ def ppo_algo(
             (
                 FullBufferBatch(rollout_length, 1),
                 MiniBatch(num_minibatches),
-                NormalizeAdvantages(),
+                # NormalizeAdvantages(),
             ),
         ),
         SGDUpdate(
             optimizer=optax.chain(optax.clip_by_global_norm(0.5), optax.adam(lr)),
-            loss_fn=PPOLoss(clip_schedule, ent_schedule, vf_schedule),
+            loss_fn=PPOLoss(
+                clip_schedule=clip_schedule,
+                vf_coef_schedule=vf_schedule,
+                ent_coef_schedule=ent_schedule,
+            ),
             num_sgd_steps=num_sgd_steps,
         ),
     )

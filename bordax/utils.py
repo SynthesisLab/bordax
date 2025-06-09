@@ -179,7 +179,8 @@ class Trainer:
             train_step = jax.jit(train_step_fixed)
 
         epoch_rollouts = []
-        values = []
+        all_metrics = []
+        model_parameters = []
 
         for ckpt in range(self.config["num_checkpoints"]):
             if self.env.is_jittable:
@@ -214,12 +215,16 @@ class Trainer:
                         self.last_obs,
                         self.last_env_state,
                     )
+                    all_metrics.append(metrics)
 
             epoch_rollouts.append(
                 self.evaluate(evaluate_key, self.training_state.params)
             )
 
+            model_parameters.append(self.training_state.params)
+
+
             if pbar is not None:
                 pbar.update(1)
 
-        return metrics, (epoch_rollouts)
+        return all_metrics, epoch_rollouts, model_parameters

@@ -8,6 +8,9 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
+from plots import visualize_training_metrics
+
+import pickle
 
 if __name__ == "__main__":
     # Initialize the environment, architecture, and algorithm
@@ -15,12 +18,11 @@ if __name__ == "__main__":
     do_plots = True
 
     training_config = {
-        "num_checkpoints": 100,
-        "epochs_per_checkpoint": 2,
-        "evaluation_episodes": 16,
+        "num_checkpoints": 200,
+        "epochs_per_checkpoint": 1,
+        "evaluation_episodes": 32,
         "debug": True,
-        "timing": True,
-        "save_model": False,
+        "save_model": True,
         # "log_interval": 10,
     }
 
@@ -42,7 +44,7 @@ if __name__ == "__main__":
     agent_name = "mlp"  # Replace with your agent
     algo_name = "ppo"  # Replace with your algorithm
 
-    env = make_env(env_name)
+    env = make_env(env_name, 1)
     eval_env = make_env(env_name, num_envs=1)
     agent = make_agent(agent_name, agent_config)
     algorithm = make_algo(algo_name, algo_config)  # Replace with your algorithm
@@ -53,7 +55,7 @@ if __name__ == "__main__":
     trainer.init(key)
 
     start_time = time.time()
-    metrics, data = trainer.run(key)
+    metrics, data, model_parameters = trainer.run(key)
     end_time = time.time()
     print(f"Training time: {end_time - start_time}")
 
@@ -67,7 +69,21 @@ if __name__ == "__main__":
         ]
         average_evaluation_rewards.append(first_rewards.mean())
 
+    # find the checkpoint with highers average evaluation reward
+    average_evaluation_rewards = np.array(average_evaluation_rewards)
+    best_checkpoint_index = np.argmax(average_evaluation_rewards)
+    best_parameters = model_parameters[best_checkpoint_index]
+
+    # save the parameters
+    if training_config["save_model"]:
+        export = {"agent": agent, "params": best_parameters}
+        with open('full_model.pkl', 'wb') as f:
+            pickle.dump(export, f)
+        print("Model saved as 'best_model.pkl'")
+
     if do_plots:
+        visualize_training_metrics(metrics, num_checkpoints=100, num_epochs=2)
+
         plt.plot(average_evaluation_rewards)
         plt.xlabel("Checkpoint")
         plt.ylabel("Average Evaluation Reward")

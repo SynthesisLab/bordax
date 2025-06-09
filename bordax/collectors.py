@@ -15,6 +15,7 @@ def create_rollout_buffer(env_spec, num_envs, num_steps) -> dict:
     buffer = {
         "obs": jnp.zeros((num_steps, num_envs) + env_spec["obs_shape"], dtype=jnp.float32),
         "action": jnp.zeros((num_steps, num_envs) + env_spec["action_shape"], dtype=jnp.int32),
+        "value": jnp.zeros((num_steps, num_envs), dtype=jnp.float32),
         "reward": jnp.zeros((num_steps, num_envs), dtype=jnp.float32),
         "done": jnp.zeros((num_steps, num_envs), dtype=jnp.bool),
         "info": {"logp": jnp.zeros((num_steps, num_envs), dtype=jnp.float32)},
@@ -53,6 +54,7 @@ class OnPolicyCollector(Collector):
             key, obs, env_state = carry
             key, act_key, env_key = jax.random.split(key, 3)
             action, info = agent.action(params, obs, act_key)
+            value= agent.value(params, obs)
 
             n_obs, n_env_state, reward, done, env_info = env.step(
                 env_key, env_state, action
@@ -61,6 +63,7 @@ class OnPolicyCollector(Collector):
             transition = dict(
                 obs=obs,
                 action=action,
+                value=value,
                 reward=reward,
                 done=done,
                 info=info,
@@ -89,11 +92,12 @@ class OnPolicyCollector(Collector):
             key, act_key, env_key = jax.random.split(key, 3)
             buffer["obs"] = buffer["obs"].at[i].set(obs)
             action, action_info = agent.action(params, obs, act_key)
-
+            value = agent.value(params, obs)
             n_obs, n_env_state, reward, done, env_info = env.step(
                 act_key, env_state, np.asarray(action)
             )
             buffer["action"] = buffer["action"].at[i].set(action)
+            buffer["value"] = buffer["value"].at[i].set(value)
             buffer["reward"] = buffer["reward"].at[i].set(reward)
             buffer["done"] = buffer["done"].at[i].set(done)
             buffer["info"]["logp"] = (
@@ -101,8 +105,6 @@ class OnPolicyCollector(Collector):
             )
             obs = n_obs
             env_state = n_env_state
-
-        # print(buffer["info"]["logp"].shape)
 
         return (obs, obs), buffer
 
