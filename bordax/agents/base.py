@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import Any, Mapping, Tuple, List, Sequence
+from typing import Any, Mapping, Tuple, List
 import flax.linen as nn
 import functools
 
@@ -180,10 +180,7 @@ class MLPPolicyValue(Agent):
         action_space = env.action_space()
         if policy_architecture == "mlp":
             self.policy_module = MLP(
-                layer_sizes=self.config["policy_layers"]
-                + [
-                    action_space.n,
-                ]
+                layer_sizes=self.config["policy_layers"] + [action_space.n]
             )
         elif policy_architecture == "dt":
             self.policy_module = MLP_dtsemnet(
@@ -196,18 +193,9 @@ class MLPPolicyValue(Agent):
         else:
             raise ValueError(f"Unknown policy architecture: {policy_architecture}")
 
-        self.value_module = MLP(
-            layer_sizes=self.config["value_layers"]
-            + [
-                1,
-            ]
-        )
+        self.value_module = MLP(layer_sizes=self.config["value_layers"] + [1])
 
-    def init(
-        self,
-        key: PRNGKey,
-        sample_obs: Any
-    ) -> Params:
+    def init(self, key: PRNGKey, sample_obs: Any) -> Params:
 
         policy_key, value_key = jax.random.split(key, 2)
         policy_params = self.policy_module.init(policy_key, sample_obs)
