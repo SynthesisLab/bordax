@@ -12,12 +12,13 @@ import gymnasium
 from typing import TYPE_CHECKING, Any, Tuple, Mapping, Dict
 from bordax.types import PRNGKey
 
+import gymnasium_robotics
+
+gymnasium.register_envs(gymnasium_robotics)
+
 EnvState = Any
 EnvObs = Any
 Space = Any
-
-gymnax_supported_envs = ["CartPole-v1"]
-gymnasium_supported_envs = []
 
 if TYPE_CHECKING:
     from dataclasses import dataclass
@@ -27,9 +28,11 @@ else:
 # we suppose that the environment is vectorised *by default*.
 # if the n is not given, then it's one
 
+
 @dataclass(frozen=True)
-class EnvParams():
+class EnvParams:
     max_steps_in_episode: int
+
 
 class EnvAdapter(ABC):
     is_jittable: bool
@@ -88,6 +91,7 @@ class EnvGymnaxAdapter(EnvAdapter):
     def obs_space(self):
         return self.env.observation_space(self.env_params)
 
+
 class EnvGymnasiumAdapter(EnvAdapter):
     def __init__(self, env_name: str, num_envs: int = 1):
         self.is_jittable = False
@@ -97,20 +101,60 @@ class EnvGymnasiumAdapter(EnvAdapter):
         if prefix == "gymnasium":
             self.env = gymnasium.make_vec(name, num_envs=self.num_envs)
 
-        self.env_params = EnvParams(max_steps_in_episode=self.env.spec.max_episode_steps)
+        self.env_params = EnvParams(
+            max_steps_in_episode=self.env.spec.max_episode_steps
+        )
+
     def reset(self, key: PRNGKey):
         seed = jax.random.key_data(key)[1].item()
         obs, info = self.env.reset(seed=seed)
         return obs, obs
-    
+
     def step(self, key: PRNGKey, state: Any, action: Any):
         obs, reward, terminated, truncated, info = self.env.step(action)
         done = terminated | truncated
         return obs, obs, reward, done, info
-    
+
     def action_space(self):
         return self.env.single_action_space
-    
+
+    def obs_space(self):
+        return self.env.single_observation_space
+
+
+class EnvGymnasiumGoalAdapter(EnvAdapter):
+
+    def __init__(self, env_name: str, num_envs: int = 1):
+        self.is_jittable = False
+        self.num_envs = num_envs
+
+        prefix, name = env_name.split("/", 1)
+        if prefix == "gymnasium-robotics":
+            self.env = gymnasium.make_vec(name, num_envs=self.num_envs)
+
+        self.env_params = EnvParams(
+            max_steps_in_episode=self.env.spec.max_episode_steps
+        )
+
+    def reset(self, key: PRNGKey):
+        seed = jax.random.key_data(key)[1].item()
+        obs, info = self.env.reset(seed=seed)
+        obs = obs["observation"]
+        return obs, obs
+
+    def step(self, key: PRNGKey, state: Any, action: Any):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        done = terminated | truncated
+        current = obs["achieved_goal"]
+        desired = obs["desired_goal"]
+        obs = obs["observation"]
+        info["current_goal"] = current
+        info["desired_goal"] = desired
+        return obs, obs, reward, done, info
+
+    def action_space(self):
+        return self.env.single_action_space
+
     def obs_space(self):
         return self.env.single_observation_space
 
@@ -123,7 +167,11 @@ def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:
             return EnvGymnaxAdapter(env_name, num_envs)
         elif env_name.split("/")[0] == "gymnasium":
             return EnvGymnasiumAdapter(env_name)
+        elif env_name.split("/")[0] == "gymnasium-robotics":
+            return EnvGymnasiumGoalAdapter(env_name, num_envs)
         else:
             raise ValueError(f"Unknown environment prefix: {env_name.split("/")[0]}")
     else:
-        raise ValueError("Environment name must include a prefix (e.g., 'gymnax/CartPole-v1').")
+        raise ValueError(
+            "Environment name must include a prefix (e.g., 'gymnax/CartPole-v1')."
+        )
