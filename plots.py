@@ -47,9 +47,6 @@ def visualize_training_metrics(
     """
     processed = process_metrics(metrics_list, num_checkpoints, num_epochs)
 
-    num_sgd_steps = processed["loss"].shape[1]
-    total_updates = num_checkpoints * num_epochs
-
     fig, axes = plt.subplots(1, 2, figsize=figsize)
 
     # 1. Loss evolution across all training
@@ -60,53 +57,6 @@ def visualize_training_metrics(
     ax.set_xlabel("Update Step")
     ax.set_ylabel("Loss")
 
-    # # Add epoch boundaries
-    # for i in range(0, total_updates, num_epochs):
-    #     ax.axvline(x=i * num_sgd_steps, color="gray", linestyle="--", alpha=0.3)
-
-    # # 2. SGD steps within epochs (show pattern)
-    # ax = axes[0, 1]
-    # # Show first few epochs to see SGD pattern
-    # epochs_to_show = min(5, total_updates)
-    # for epoch in range(epochs_to_show):
-    #     sgd_losses = processed["loss"][epoch]
-    #     ax.plot(
-    #         range(num_sgd_steps),
-    #         sgd_losses,
-    #         marker="o",
-    #         label=f"Epoch {epoch}",
-    #         alpha=0.7,
-    #     )
-    # ax.set_title("Loss per SGD Step (First Few Epochs)")
-    # ax.set_xlabel("SGD Step")
-    # ax.set_ylabel("Loss")
-    # ax.legend()
-
-    # # 3. Average loss per epoch
-    # ax = axes[0, 2]
-    # epoch_avg_loss = np.mean(processed["loss"], axis=1)
-    # ax.plot(epoch_avg_loss)
-    # ax.set_title("Average Loss per Epoch")
-    # ax.set_xlabel("Epoch")
-    # ax.set_ylabel("Average Loss")
-
-    # # 4. Value loss evolution
-    # ax = axes[1, 0]
-    # value_loss_flat = processed["value_loss"].flatten()
-    # ax.plot(value_loss_flat, alpha=0.7, color="orange")
-    # ax.set_title("Value Loss Evolution")
-    # ax.set_xlabel("Update Step")
-    # ax.set_ylabel("Value Loss")
-
-    # # 5. Entropy loss evolution
-    # ax = axes[1, 1]
-    # entropy_loss_flat = processed["entropy_loss"].flatten()
-    # ax.plot(entropy_loss_flat, alpha=0.7, color="green")
-    # ax.set_title("Entropy Loss Evolution")
-    # ax.set_xlabel("Update Step")
-    # ax.set_ylabel("Entropy Loss")
-
-    # 6. All losses comparison (normalized)
     ax = axes[1]
     # Normalize each loss type for comparison
     for key, color in [

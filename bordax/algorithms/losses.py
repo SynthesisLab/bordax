@@ -38,6 +38,9 @@ class SurrogateLoss(LossFn):
         pi, info = agent.policy(params, obs)
         logp = pi.log_prob(act)
 
+        if act.ndim > 1:
+            logp = jnp.sum(logp, axis=-1)
+
         ratio = jnp.exp(logp - old_logp)
 
         surrogate_loss1 = ratio * adv

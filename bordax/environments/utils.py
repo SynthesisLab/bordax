@@ -56,15 +56,16 @@ class EnvAdapter(ABC):
 
 
 class EnvGymnaxAdapter(EnvAdapter):
-    def __init__(self, env_name: str, num_envs: int = 1):
+    def __init__(self, env_name: str, env_config, num_envs: int = 1):
         self.is_jittable = True
         self.num_envs = num_envs
+        self.config = env_config
 
         prefix, name = env_name.split("/", 1)
         if prefix == "gymnax":
-            self.env, self.env_params = gymnax.make(name)
+            self.env, self.env_params = gymnax.make(name, **self.config["init_config"])
         elif prefix == "brouillax":
-            self.env, self.env_params = brouillax.make(name)
+            self.env, self.env_params = brouillax.make(name, **self.config["init_config"])
         else:
             raise ValueError(f"Unknown environment prefix: {prefix}")
 
@@ -93,13 +94,14 @@ class EnvGymnaxAdapter(EnvAdapter):
 
 
 class EnvGymnasiumAdapter(EnvAdapter):
-    def __init__(self, env_name: str, num_envs: int = 1):
+    def __init__(self, env_name: str, env_config, num_envs: int = 1):
         self.is_jittable = False
         self.num_envs = num_envs
+        self.config = env_config
 
         prefix, name = env_name.split("/", 1)
         if prefix == "gymnasium":
-            self.env = gymnasium.make_vec(name, num_envs=self.num_envs)
+            self.env = gymnasium.make_vec(name, num_envs=self.num_envs, **self.config["init_config"])
 
         self.env_params = EnvParams(
             max_steps_in_episode=self.env.spec.max_episode_steps
@@ -107,7 +109,7 @@ class EnvGymnasiumAdapter(EnvAdapter):
 
     def reset(self, key: PRNGKey):
         seed = jax.random.key_data(key)[1].item()
-        obs, info = self.env.reset(seed=seed)
+        obs, info = self.env.reset(seed=seed, **self.config["reset_config"])
         return obs, obs
 
     def step(self, key: PRNGKey, state: Any, action: Any):
@@ -124,13 +126,14 @@ class EnvGymnasiumAdapter(EnvAdapter):
 
 class EnvGymnasiumGoalAdapter(EnvAdapter):
 
-    def __init__(self, env_name: str, num_envs: int = 1):
+    def __init__(self, env_name: str, env_config, num_envs: int = 1):
         self.is_jittable = False
         self.num_envs = num_envs
+        self.config = env_config
 
         prefix, name = env_name.split("/", 1)
         if prefix == "gymnasium-robotics":
-            self.env = gymnasium.make_vec(name, num_envs=self.num_envs)
+            self.env = gymnasium.make_vec(name, num_envs=self.num_envs, **self.config["init_config"])
 
         self.env_params = EnvParams(
             max_steps_in_episode=self.env.spec.max_episode_steps
@@ -138,7 +141,7 @@ class EnvGymnasiumGoalAdapter(EnvAdapter):
 
     def reset(self, key: PRNGKey):
         seed = jax.random.key_data(key)[1].item()
-        obs, info = self.env.reset(seed=seed)
+        obs, info = self.env.reset(seed=seed, **self.config["reset_config"])
         obs = obs["observation"]
         return obs, obs
 
@@ -156,19 +159,19 @@ class EnvGymnasiumGoalAdapter(EnvAdapter):
         return self.env.single_action_space
 
     def obs_space(self):
-        return self.env.single_observation_space
+        return self.env.single_observation_space["observation"]
 
 
-def make_env(env_name: str, num_envs: int = 1) -> EnvAdapter:
+def make_env(env_name: str, env_config, num_envs: int = 1) -> EnvAdapter:
 
     if len(env_name.split("/")) > 1:
         # the prefix indicates what type environment to use
         if env_name.split("/")[0] in ["gymnax", "brouillax"]:
-            return EnvGymnaxAdapter(env_name, num_envs)
+            return EnvGymnaxAdapter(env_name, env_config, num_envs)
         elif env_name.split("/")[0] == "gymnasium":
-            return EnvGymnasiumAdapter(env_name)
+            return EnvGymnasiumAdapter(env_name, env_config, num_envs)
         elif env_name.split("/")[0] == "gymnasium-robotics":
-            return EnvGymnasiumGoalAdapter(env_name, num_envs)
+            return EnvGymnasiumGoalAdapter(env_name, env_config, num_envs)
         else:
             raise ValueError(f"Unknown environment prefix: {env_name.split("/")[0]}")
     else:

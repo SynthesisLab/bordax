@@ -1,11 +1,12 @@
-from bordax.agents.base import Agent, BlankAgent, MLPPolicyValue
+from bordax.agents.base import Agent, BlankAgent, MLPPolicyValue, MLPPolicyValueContinuous
 from bordax.environments.utils import EnvAdapter
 
 AGENT_REGISTRY = {
-    'blank/blank': BlankAgent,
-    'mlp/mlp': MLPPolicyValue,
-    'mlp/dt': MLPPolicyValue, 
-    'mlp/bool': MLPPolicyValue,
+    "blank/blank": BlankAgent,
+    "mlp/mlp": MLPPolicyValue,
+    "mlp/dt": MLPPolicyValue,
+    "mlp/bool": MLPPolicyValue,
+    "mlp-continuous/mlp": MLPPolicyValueContinuous,
 }
 
 def make_agent(agent_name: str, env: EnvAdapter, agent_config: dict = {}) -> Agent:

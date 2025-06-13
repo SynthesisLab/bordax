@@ -1,6 +1,6 @@
 from bordax.environments.utils import EnvAdapter
 from bordax.types import PRNGKey, Params
-from distrax import DistributionLike, Categorical
+from distrax import DistributionLike, Categorical, Normal
 
 import jax
 import jax.numpy as jnp
@@ -31,6 +31,9 @@ class Agent(ABC):
             logp = dist.log_prob(action)
         else:
             action, logp = dist.sample_and_log_prob(seed=key)
+            # if the action is multidimensional, take the sum of the logs
+            if isinstance(logp, jnp.ndarray) and logp.ndim > 1:
+                logp = jnp.sum(logp, axis=-1)
         return action, dict(
             logp=logp,
             **info,
@@ -212,6 +215,61 @@ class MLPPolicyValue(Agent):
         if isinstance(logits, tuple):
             logits = logits[0]
         pi = Categorical(logits=logits)
+        return pi, {}
+
+    def policy_activations(self, params, obs):
+        logits, state = self.policy_module.apply(
+            params["policy"], obs, capture_intermediates=True, mutable=["intermediates"]
+        )
+        intermediates = state["intermediates"]
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        pi = Categorical(logits=logits)
+        return pi, intermediates
+
+    @functools.partial(jax.jit, static_argnames=("self"))
+    def value(self, params: Params, obs: Any) -> jnp.ndarray:
+        value_out = self.value_module.apply(params["value"], obs)
+        if isinstance(value_out, tuple):
+            value_out = value_out[0]
+        return jnp.squeeze(value_out, axis=-1)
+
+
+class MLPPolicyValueContinuous(Agent):
+
+    def __init__(self, config: dict, env: EnvAdapter, policy_architecture: str):
+        self.config = config
+        self.n_actions = env.action_space().shape[0]
+        if policy_architecture == "mlp":
+            self.policy_module = MLP(
+                layer_sizes=self.config["policy_layers"] + [2 * self.n_actions]
+            )
+        else:
+            raise ValueError(f"Unknown policy architecture: {policy_architecture}")
+
+        self.value_module = MLP(layer_sizes=self.config["value_layers"] + [1])
+
+    def init(self, key: PRNGKey, sample_obs: Any) -> Params:
+
+        policy_key, value_key = jax.random.split(key, 2)
+        policy_params = self.policy_module.init(policy_key, sample_obs)
+        value_params = self.value_module.init(value_key, sample_obs)
+
+        return {
+            "policy": policy_params,
+            "value": value_params,
+        }
+
+    @functools.partial(jax.jit, static_argnames=("self"))
+    def policy(self, params: Params, obs: Any) -> Tuple[Any, Mapping[str, Any]]:
+        distribution_parameters = self.policy_module.apply(params["policy"], obs)
+        if isinstance(distribution_parameters, tuple):
+            distribution_parameters = distribution_parameters[0]
+        # the last layer gives the mean and the std for every action as the output
+        pi = Normal(
+            loc=distribution_parameters[..., : self.n_actions],
+            scale=jax.nn.softplus(distribution_parameters[..., self.n_actions :]),
+        )
         return pi, {}
 
     def policy_activations(self, params, obs):

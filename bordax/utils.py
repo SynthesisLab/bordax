@@ -116,6 +116,8 @@ class Trainer:
             "info": {"logp": np.zeros((num_envs, num_steps))},
         }
 
+        info_keys = ["logp"]
+
         for episode, key in enumerate(keys):
             run_key, reset_key = jax.random.split(key, 2)
 
@@ -139,6 +141,7 @@ class Trainer:
                 buffer["reward"][episode, step] = reward
                 buffer["done"][episode, step] = done
                 for key in info:
+                    # if key in info_keys:
                     buffer["info"][key][episode, step] = info[key]
 
                 obs = n_obs

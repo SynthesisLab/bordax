@@ -27,29 +27,44 @@ if __name__ == "__main__":
     }
 
     agent_config_mlp = {
-        "policy_layers": [128, 64, 32],
-        "value_layers": [128, 64, 32],
+        "policy_layers": [128, 128, 64],
+        "value_layers": [128, 128, 64],
     }
-    agent_config_dt = {"tree_depth": 4, "value_layers": [128, 64, 32]}
+    agent_config_dt = {"tree_depth": 4, "value_layers": [64,64]}
     agent_config_bool = {"n": 4, "value_layers": [128, 64, 32]}
 
-    env_config = {}
+    env_config = {
+        "init_config": {},
+        "reset_config": {},  # {"reset_cell": np.array([3, 1]), "goal_cell": np.array([1, 1])},
+    }
     algo_config = {
-        "lr": 1e-4,
+        "lr": 1e-5,
         "rollout_length": 2048,
         "gamma": 0.99,
+        "clip_schedule": lambda _: 0.2,
+        "vf_schedule": lambda _: 0.5,
+        "ent_schedule": lambda _: 0.01,
         "_lambda": 0.95,
-        "num_minibatches": 32,
+        "num_minibatches": 16,
         "num_sgd_steps": 10,
     }
 
-    env_name = "gymnasium/LunarLander-v3"  # Replace with your environment
-    agent_name = "mlp/dt"  # Replace with your agent
+    # env_name = (
+    #     "gymnasium-robotics/PointMaze_UMazeDense-v3"  # Replace with your environment
+    # )
+    # env_name = "gymnasium/LunarLander-v3"
+    env_name = "gymnax/Reacher-misc"
+    agent_name = "mlp-continuous/mlp"  # Replace with your agent
     algo_name = "ppo"  # Replace with your algorithm
 
-    env = make_env(env_name, 1)
-    eval_env = make_env(env_name, num_envs=1)
-    agent = make_agent(agent_name, env, agent_config_dt)
+    import gymnasium
+    import gymnasium_robotics
+
+    gymnasium.register_envs(gymnasium_robotics)
+
+    env = make_env(env_name, env_config, 1)
+    eval_env = make_env(env_name, env_config, 1)
+    agent = make_agent(agent_name, env, agent_config_mlp)
     algorithm = make_algo(algo_name, algo_config)  # Replace with your algorithm
 
     # Initialize the trainer
