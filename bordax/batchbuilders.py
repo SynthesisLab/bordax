@@ -53,8 +53,8 @@ class MiniBatch(BatchBuilder):
         return minibatches
 
 
-class NormalizeAdvantages(BatchBuilder):
-    """Normalizes advantages per minibatch in a batch of minibatches."""
+class NormalizeAdvantagesTargets(BatchBuilder):
+    """Normalizes advantages and targets per minibatch in a batch of minibatches."""
 
     def __init__(self, eps: float = 1e-8):
         self.eps = eps
@@ -67,7 +67,12 @@ class NormalizeAdvantages(BatchBuilder):
             adv_std = jnp.std(advantages)
             normalized_advantages = (advantages - adv_mean) / (adv_std + self.eps)
 
-            return {**minibatch_data, "advantages": normalized_advantages}
+            targets = minibatch_data["targets"]
+            target_mean = jnp.mean(targets)
+            target_std = jnp.std(targets)
+            normalized_targets = (targets - target_mean) / (target_std + self.eps)
+
+            return {**minibatch_data, "advantages": normalized_advantages, "targets": normalized_targets}
 
         normalized_buffer = jax.vmap(normalize_minibatch)(buffer)
 

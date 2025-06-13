@@ -13,8 +13,12 @@ import numpy as np
 
 def create_rollout_buffer(env_spec, num_envs, num_steps) -> dict:
     buffer = {
-        "obs": jnp.zeros((num_steps, num_envs) + env_spec["obs_shape"], dtype=jnp.float32),
-        "action": jnp.zeros((num_steps, num_envs) + env_spec["action_shape"], dtype=jnp.int32),
+        "obs": jnp.zeros(
+            (num_steps, num_envs) + env_spec["obs_shape"], dtype=jnp.float32
+        ),
+        "action": jnp.zeros(
+            (num_steps, num_envs) + env_spec["action_shape"], dtype=jnp.int32
+        ),
         "value": jnp.zeros((num_steps, num_envs), dtype=jnp.float32),
         "reward": jnp.zeros((num_steps, num_envs), dtype=jnp.float32),
         "done": jnp.zeros((num_steps, num_envs), dtype=jnp.bool),
@@ -54,7 +58,7 @@ class OnPolicyCollector(Collector):
             key, obs, env_state = carry
             key, act_key, env_key = jax.random.split(key, 3)
             action, info = agent.action(params, obs, act_key)
-            value= agent.value(params, obs)
+            value = agent.value(params, obs)
 
             n_obs, n_env_state, reward, done, env_info = env.step(
                 env_key, env_state, action

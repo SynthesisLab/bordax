@@ -85,9 +85,14 @@ if __name__ == "__main__":
         print("Model saved as 'best_model.pkl'")
 
     if do_plots:
-        visualize_training_metrics(metrics, num_checkpoints=100, num_epochs=2)
 
-        plt.plot(average_evaluation_rewards)
+        import seaborn as sns
+
+        visualize_training_metrics(metrics, num_checkpoints=100, num_epochs=1)
+
+        sns.set_theme(style="darkgrid")
+        plt.figure(figsize=(8, 4))
+        sns.lineplot(x=np.arange(len(average_evaluation_rewards)), y=average_evaluation_rewards)
         plt.xlabel("Checkpoint")
         plt.ylabel("Average Evaluation Reward")
         plt.title("Average Evaluation Reward Over Checkpoints")

@@ -16,7 +16,7 @@ from bordax.algorithms.losses import PPOLoss
 from bordax.batchbuilders import (
     FullBufferBatch,
     MiniBatch,
-    NormalizeAdvantages,
+    NormalizeAdvantagesTargets,
     ComposedBatchBuilder,
 )
 from bordax.collectors import (
@@ -94,7 +94,7 @@ def ppo_algo(
     _lambda: float = 0.85,
     lr: float = 0.001,
     clip_schedule=lambda _: 0.2,
-    vf_schedule=lambda _: 0.25,
+    vf_schedule=lambda _: 0.5,
     ent_schedule=lambda _: 0.01,
     num_minibatches=16,
     num_sgd_steps=1,
@@ -110,7 +110,7 @@ def ppo_algo(
             (
                 FullBufferBatch(rollout_length, 1),
                 MiniBatch(num_minibatches),
-                # NormalizeAdvantages(),
+                NormalizeAdvantagesTargets(),
             ),
         ),
         SGDUpdate(

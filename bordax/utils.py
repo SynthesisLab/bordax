@@ -167,7 +167,7 @@ class Trainer:
             "Total number of timesteps: ",
             self.config["num_checkpoints"]
             * self.config["epochs_per_checkpoint"]
-            * self.algo.collector.rollout_len,
+            * self.algo.collector.rollout_len, # type: ignore
         )
 
         key, training_key, evaluate_key = jax.random.split(key, 3)
@@ -198,6 +198,7 @@ class Trainer:
                         self.last_obs,
                         self.last_env_state,
                     )
+                    all_metrics.append(metrics)
             else:
                 for epoch in range(self.config["epochs_per_checkpoint"]):
                     (
@@ -222,7 +223,6 @@ class Trainer:
             )
 
             model_parameters.append(self.training_state.params)
-
 
             if pbar is not None:
                 pbar.update(1)
