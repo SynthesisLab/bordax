@@ -1,4 +1,4 @@
-from bordax.utils import Trainer
+from bordax.trainer import Trainer, TrainerConfig
 from bordax.algorithms.utils import make_algo
 from bordax.environments.utils import make_env
 from bordax.agents.utils import make_agent
@@ -17,14 +17,13 @@ if __name__ == "__main__":
 
     do_plots = True
 
-    training_config = {
-        "num_checkpoints": 400,
-        "epochs_per_checkpoint": 1,
-        "evaluation_episodes": 32,
-        "debug": True,
-        "save_model": True,
-        # "log_interval": 10,
-    }
+    training_config = TrainerConfig(
+        num_checkpoints=400,
+        epochs_per_checkpoint=1,
+        evaluation_episodes=32,
+        debug=True,
+        save_model=True,
+    )
 
     agent_config_mlp = {
         "policy_layers": [128, 128, 64],
@@ -93,7 +92,7 @@ if __name__ == "__main__":
     best_parameters = model_parameters[best_checkpoint_index]
 
     # save the parameters
-    if training_config["save_model"]:
+    if training_config.save_model:
         export = {"agent": agent, "params": best_parameters}
         with open("full_model.pkl", "wb") as f:
             pickle.dump(export, f)

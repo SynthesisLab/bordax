@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from gymnax import EnvParams
 from bordax.agents.base import Agent
 from bordax.environments.utils import EnvAdapter
@@ -14,6 +15,13 @@ import jax.numpy as jnp
 import numpy as np
 from typing import Tuple, Any
 
+@dataclass
+class TrainerConfig:
+    num_checkpoints: int
+    epochs_per_checkpoint: int
+    evaluation_episodes: int
+    debug: bool
+    save_model: bool
 
 # A trainer takes an environment, an agent architecture, and an algorithm (and a config)
 class Trainer:
@@ -23,7 +31,7 @@ class Trainer:
         eval_env: EnvAdapter,
         agent: Agent,
         algo: Algorithm,
-        config: Mapping[str, Any],
+        config: TrainerConfig,
     ):
         self.env = env
         self.eval_env = eval_env
@@ -153,7 +161,7 @@ class Trainer:
         return buffer
 
     def evaluate(self, key: PRNGKey, params):
-        evaluation_keys = jax.random.split(key, self.config["evaluation_episodes"])
+        evaluation_keys = jax.random.split(key, self.config.evaluation_episodes)
         if self.env.is_jittable:
             data = self.evaluate_jittable(evaluation_keys, params)
         else:
@@ -161,15 +169,15 @@ class Trainer:
         return data
 
     def run(self, key: PRNGKey):
-        if self.config["debug"]:
-            pbar = tqdm(total=self.config["num_checkpoints"])
+        if self.config.debug:
+            pbar = tqdm(total=self.config.num_checkpoints)
         else:
             pbar = None
 
         print(
             "Total number of timesteps: ",
-            self.config["num_checkpoints"]
-            * self.config["epochs_per_checkpoint"]
+            self.config.num_checkpoints
+            * self.config.epochs_per_checkpoint
             * self.algo.collector.rollout_len, # type: ignore
         )
 
@@ -185,9 +193,9 @@ class Trainer:
         all_metrics = []
         model_parameters = []
 
-        for ckpt in range(self.config["num_checkpoints"]):
+        for ckpt in range(self.config.num_checkpoints):
             if self.env.is_jittable:
-                for epoch in range(self.config["epochs_per_checkpoint"]):
+                for epoch in range(self.config.epochs_per_checkpoint):
                     (
                         training_key,
                         self.training_state,
@@ -203,9 +211,9 @@ class Trainer:
                     )
                     all_metrics.append(metrics)
             else:
-                for epoch in range(self.config["epochs_per_checkpoint"]):
+                for epoch in range(self.config.epochs_per_checkpoint):
                     (
-                        trainng_key,
+                        training_key,
                         self.training_state,
                         _,
                         self.last_obs,
