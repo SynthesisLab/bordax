@@ -52,10 +52,11 @@ class Algorithm(NamedTuple):
         env: EnvAdapter,
         obs: EnvObs,
         env_state: EnvState,
+        replay_buffer: Any,
         agent: Agent,
         ts: TrainingState,
     ):
-        return self.collector(key, env, obs, env_state, agent, ts.params)
+        return self.collector(key, env, obs, env_state, replay_buffer, agent, ts.params)
 
     @functools.partial(jax.jit, static_argnames=("self", "agent"))
     def update(self, agent: Agent, batch: Any, ts: TrainingState, key: PRNGKey):
@@ -72,17 +73,20 @@ class Algorithm(NamedTuple):
         agent: Agent,
         key: PRNGKey,
         ts: TrainingState,
-        buffer: Any,
+        replay_buffer: Any,
         obs: EnvObs,
         env_state: EnvState,
     ):
         key, collect_key, batch_key, update_key = jax.random.split(key, 4)
 
-        (obs, env_state), buffer = self.collect(
-            collect_key, env, obs, env_state, agent, ts
-        )
+        (obs, env_state), replay_buffer = self.collect(
+            collect_key, env, obs, env_state, replay_buffer, agent, ts
+        ) 
+        # the collector also updates the replay buffer:
+        # for on-policy, it returns the new buffer with the collected rollout; 
+        # for off-policy, it adds the new transitions to the existing buffer
 
-        batch = self.batch_builder(batch_key, buffer)
+        batch = self.batch_builder(batch_key, replay_buffer)
         ts, metrics = self.update(agent, batch, ts, update_key)
 
         return (key, ts, None, obs, env_state), metrics
