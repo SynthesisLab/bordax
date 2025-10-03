@@ -21,7 +21,7 @@ class ReplayBuffer:
         self.action_shape = action_shape
 
         self.observations = np.zeros((capacity, *obs_shape), dtype=np.float32)
-        self.actions = np.zeros((capacity, *action_shape), dtype=np.float32)
+        self.actions = np.zeros((capacity, *action_shape), dtype=np.int32)
         self.rewards = np.zeros(capacity, dtype=np.float32)
         self.next_observations = np.zeros((capacity, *obs_shape), dtype=np.float32)
         self.dones = np.zeros(capacity, dtype=np.bool_)

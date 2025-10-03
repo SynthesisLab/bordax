@@ -1,4 +1,4 @@
-from bordax.agents.base import Agent
+from bordax.agents.base import Agent, DQNParameters
 from bordax.types import PRNGKey, Params
 
 import jax
@@ -82,6 +82,49 @@ class EntropyLoss(LossFn):
         loss = -self.ent_coef_schedule(step) * pi.entropy().mean()
         metrics = {
             "entropy_loss": loss,
+        }
+        return loss, metrics
+
+
+class DQNLoss(LossFn):
+    def __init__(self, gamma: float):
+        self.gamma = gamma
+
+    def __call__(self, params: DQNParameters, agent: Agent, batch: Mapping[str, jnp.ndarray], key: PRNGKey, step: jnp.ndarray):
+        obs, action, reward, next_obs, done = (
+            batch["obs"],
+            batch["action"],
+            batch["reward"],
+            batch["next_obs"],
+            batch["done"],
+        )
+
+        # Calculate current Q-values using agent's q_network
+        q_values = agent.q_network.apply(params.q_network, obs)
+        if isinstance(q_values, tuple):
+            q_values = q_values[0]
+        
+        # Handle both scalar and vector actions
+        if action.ndim == 1:
+            action = action[..., None]
+        q_values_taken = jnp.take_along_axis(q_values, action, axis=-1).squeeze(-1)
+
+        # Calculate target Q-values using agent's target_network
+        target_q_values_next_state = agent.target_network.apply(params.target_network, next_obs)
+        if isinstance(target_q_values_next_state, tuple):
+            target_q_values_next_state = target_q_values_next_state[0]
+        max_target_q_next_state = jnp.max(target_q_values_next_state, axis=-1)
+        
+        # Compute target for Bellman equation
+        target = reward + self.gamma * max_target_q_next_state * (1 - done)
+
+        # Compute the loss (MSE between predicted Q and target Q)
+        loss = jnp.mean(jnp.square(q_values_taken - jax.lax.stop_gradient(target)))
+        
+        metrics = {
+            "dqn_loss": loss,
+            "mean_q_value": jnp.mean(q_values_taken),
+            "mean_target": jnp.mean(target),
         }
         return loss, metrics
 

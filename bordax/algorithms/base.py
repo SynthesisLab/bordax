@@ -128,6 +128,43 @@ def ppo_algo(
         ),
     )
 
+def dqn_algo(
+    epsilon: float = 0.1,
+    rollout_length: int = 1,
+    batch_size: int = 32,
+    gamma: float = 0.99,
+    lr: float = 1e-4,
+    target_update_freq: int = 1000,
+    **kwargs
+):
+    """Create a DQN algorithm.
+    
+    Args:
+        epsilon: Exploration rate for epsilon-greedy policy
+        rollout_length: Number of steps to collect before updating (typically 1 for DQN)
+        batch_size: Number of transitions to sample from replay buffer
+        gamma: Discount factor
+        lr: Learning rate for the Q-network optimizer
+        target_update_freq: How often to update target network (in training steps)
+    
+    Returns:
+        Algorithm instance for DQN
+    """
+    from bordax.batchbuilders import UniformReplayBatch
+    from bordax.updaters import DQNUpdater
+    from bordax.algorithms.losses import DQNLoss
+    
+    return Algorithm(
+        EpsGreedyCollector(epsilon=epsilon, rollout_length=rollout_length),
+        UniformReplayBatch(batch_size),
+        DQNUpdater(
+            optimizer=optax.adam(lr),
+            loss_fn=DQNLoss(gamma=gamma),
+            target_update_freq=target_update_freq,
+        ),
+    )
+
+
 # dqn_algo = Algorithm(
 #     EpsGreedyCollector(epsilon=0.1, gamma=0.99),
 #     UniformReplayBatch(32),

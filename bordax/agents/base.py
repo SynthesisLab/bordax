@@ -166,6 +166,43 @@ class MLPPolicyValueContinuous(Agent):
             value_out = value_out[0]
         return jnp.squeeze(value_out, axis=-1)
 
+class DQNParameters(NamedTuple):
+    q_network: Params
+    target_network: Params
+
+class DQNAgent(Agent):
+    """A DQN agent with a Q-network and target network."""
+
+    def __init__(self, config: dict, env: EnvAdapter):
+        self.config = config
+        action_space = env.action_space()
+        if not hasattr(action_space, "n"):
+            raise ValueError("DQNAgent only supports discrete action spaces.")
+        self.n_actions = action_space.n
+        self.q_network = MLP(layer_sizes=self.config["q_layers"] + [self.n_actions])
+        self.target_network = MLP(layer_sizes=self.config["q_layers"] + [self.n_actions])
+
+    def init(self, key: PRNGKey, sample_obs: Any) -> DQNParameters:
+        q_params = self.q_network.init(key, sample_obs)
+        return DQNParameters(q_network=q_params, target_network=q_params)
+    
+    @functools.partial(jax.jit, static_argnames=("self"))
+    def policy(self, params: DQNParameters, obs: Any, key: PRNGKey) -> Tuple[Any, Mapping[str, Any]]:
+        q_values = self.q_network.apply(params.q_network, obs)
+        if isinstance(q_values, tuple):
+            q_values = q_values[0]
+        pi = Categorical(logits=q_values)
+        return pi, {}    
+    
+    @functools.partial(jax.jit, static_argnames=("self"))
+    def value(self, params: DQNParameters, obs: Any) -> jnp.ndarray:
+        q_values = self.q_network.apply(params.q_network, obs)
+        if isinstance(q_values, tuple):
+            q_values = q_values[0]
+        max_q_values = jnp.max(q_values, axis=-1)
+        return max_q_values
+
+    
 
 class MixtureAgent(Agent):
     """An agent that mixes the policies of two agents with a given probability."""

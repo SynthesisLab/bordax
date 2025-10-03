@@ -1,7 +1,8 @@
-from bordax.algorithms.base import Algorithm, ppo_algo
+from bordax.algorithms.base import Algorithm, ppo_algo, dqn_algo
 
 ALGO_REGISTRY = {
     "ppo": ppo_algo,
+    "dqn": dqn_algo,
 }
 
 

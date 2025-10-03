@@ -193,7 +193,9 @@ class EpsGreedyCollector(Collector):
                 'done': done
             }
             # The buffer expects numpy arrays, so we convert them
-            transition = jax.tree_util.tree_map(lambda x: np.asarray(x) if hasattr(x, '__array__') else x, transition)
+            transition = jax.tree_util.tree_map(lambda x: np.asarray(x, dtype=x.dtype if hasattr(x, 'dtype') else None), transition)
+            # Ensure actions are integers
+            transition['action'] = transition['action'].astype(np.int32)
             # The numpy buffer add method expects a batch, so we expand dims
             transition = jax.tree_util.tree_map(lambda x: np.expand_dims(x, axis=0), transition)
             replay_buffer.add(transition)

@@ -5,7 +5,7 @@ import optax
 import jax.numpy as jnp
 
 PRNGKey = chex.PRNGKey
-Params = optax.Params
+Params = Any
 
 GenericParameters = Any
 PolicyParameters = Any

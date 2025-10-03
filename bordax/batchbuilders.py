@@ -90,3 +90,26 @@ class ComposedBatchBuilder(BatchBuilder):
             buffer = batch_builder(keys[i], buffer)
 
         return buffer
+
+
+class UniformReplayBatch(BatchBuilder):
+    """Sample a batch uniformly from a ReplayBuffer."""
+    
+    def __init__(self, batch_size: int):
+        self.batch_size = batch_size
+    
+    def __call__(self, key: PRNGKey, buffer: Any) -> Mapping[str, jnp.ndarray]:
+        """Sample transitions from replay buffer and convert to JAX arrays.
+        
+        Args:
+            key: PRNG key (unused, but kept for interface consistency)
+            buffer: ReplayBuffer instance
+            
+        Returns:
+            Dictionary of JAX arrays with keys: obs, action, reward, next_obs, done
+        """
+        # Sample from the numpy buffer
+        batch_np = buffer.sample(self.batch_size)
+        # Convert to JAX arrays
+        batch_jax = jax.tree_util.tree_map(jnp.array, batch_np)
+        return batch_jax
