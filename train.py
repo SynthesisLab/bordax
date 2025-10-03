@@ -15,27 +15,27 @@ import pickle
 if __name__ == "__main__":
     # Initialize the environment, architecture, and algorithm
 
-    do_plots = True
+    do_plots = False
 
-    training_config = TrainerConfig(
-        num_checkpoints=400,
-        epochs_per_checkpoint=1,
-        evaluation_episodes=32,
-        debug=True,
-        save_model=True,
-    )
+    
+    env_name = "gymnax/CartPole-v1"
+    env_config = {
+        "init_config": {},
+        "reset_config": {}, 
+    }
+    env = make_env(env_name, env_config, 1)
+    eval_env = make_env(env_name, env_config, 1)
 
+    agent_name = "mlp/mlp"  # Replace with your agent
     agent_config_mlp = {
         "policy_layers": [128, 128, 64],
         "value_layers": [128, 128, 64],
     }
-    agent_config_dt = {"tree_depth": 4, "value_layers": [64,64]}
-    agent_config_bool = {"n": 4, "value_layers": [128, 64, 32]}
+    # agent_config_dt = {"tree_depth": 4, "value_layers": [64,64]}
+    # agent_config_bool = {"n": 4, "value_layers": [128, 64, 32]}
+    agent = make_agent(agent_name, env, agent_config_mlp)
 
-    env_config = {
-        "init_config": {},
-        "reset_config": {},  # {"reset_cell": np.array([3, 1]), "goal_cell": np.array([1, 1])},
-    }
+    algo_name = "ppo"  # Replace with your algorithm: ppo, a2c, dqn, ddpg, sac
     algo_config = {
         "lr": 1e-5,
         "rollout_length": 2048,
@@ -47,29 +47,21 @@ if __name__ == "__main__":
         "num_minibatches": 16,
         "num_sgd_steps": 10,
     }
+    algorithm = make_algo(algo_name, algo_config)
 
-    # env_name = (
-    #     "gymnasium-robotics/PointMaze_UMazeDense-v3"  # Replace with your environment
-    # )
-    # env_name = "gymnasium/LunarLander-v3"
-    env_name = "gymnax/Reacher-misc"
-    agent_name = "mlp-continuous/mlp"  # Replace with your agent
-    algo_name = "ppo"  # Replace with your algorithm
-
-    import gymnasium
-    import gymnasium_robotics
-
-    gymnasium.register_envs(gymnasium_robotics)
-
-    env = make_env(env_name, env_config, 1)
-    eval_env = make_env(env_name, env_config, 1)
-    agent = make_agent(agent_name, env, agent_config_mlp)
-    algorithm = make_algo(algo_name, algo_config)  # Replace with your algorithm
 
     # Initialize the trainer
+    training_config = TrainerConfig(
+        num_checkpoints=400,
+        epochs_per_checkpoint=1,
+        evaluation_episodes=32,
+        debug=False,
+        save_model=False,
+    )
     trainer = Trainer(env, eval_env, agent, algorithm, training_config)
     key = jax.random.PRNGKey(0)  # Random key for JAX
-    trainer.init(key)
+    init_key, key = jax.random.split(key)
+    trainer.init(init_key)
 
     start_time = time.time()
     metrics, data, model_parameters = trainer.run(key)
