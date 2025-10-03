@@ -128,6 +128,12 @@ def ppo_algo(
         ),
     )
 
+# dqn_algo = Algorithm(
+#     EpsGreedyCollector(epsilon=0.1, gamma=0.99),
+#     UniformReplayBatch(32),
+#     DQNLoss(n_step=1, delta=1.0),
+#     TargetNetUpdater(AdamUpdater(1e-4), tau=None, update_interval=1000),  # hard update
+# )
 
 # a2c_algo = Algorithm(
 #     OnPolicyCollector(roullout_length=5, gamma=0.99),
@@ -136,12 +142,6 @@ def ppo_algo(
 #     AdamUpdater(3e-4),
 # )
 
-# dqn_algo = Algorithm(
-#     EpsGreedyCollector(epsilon=0.1, gamma=0.99),
-#     UniformReplayBatch(32),
-#     DQNLoss(n_step=1, delta=1.0),
-#     TargetNetUpdater(AdamUpdater(1e-4), tau=None, update_interval=1000),  # hard update
-# )
 
 # ddqn_algo = Algorithm(
 #     EpsGreedyCollector(epsilon=0.1, gamma=0.99),

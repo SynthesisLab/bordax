@@ -1,5 +1,22 @@
+"""Agent base classes and simple policy/value MLP implementations.
+
+This module defines the Agent abstract base class and several concrete
+agents and neural modules used by the project:
+
+- Agent: abstract interface for agents (init, policy, action, value).
+- BlankAgent: a simple uniform (random) discrete action agent.
+- MLP / MLP_dtsemnet / MLP_boolean: small neural modules used as policy
+    architectures.
+- MLPPolicyValue / MLPPolicyValueContinuous: actor-critic wrappers that
+    expose a policy (Categorical or Normal) and a value function.
+
+Docstrings are provided for classes and public methods to aid reading and
+automatic documentation generation.
+"""
+
 from bordax.environments.utils import EnvAdapter
-from bordax.types import PRNGKey, Params
+from bordax.types import PRNGKey, Params, AgentParameters, PolicyValueParameters
+from bordax.agents.components import MLP, MLP_dtsemnet, MLP_boolean
 from distrax import DistributionLike, Categorical, Normal
 
 import jax
@@ -7,31 +24,33 @@ import jax.numpy as jnp
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import Any, Mapping, Tuple, List
+from typing import Any, Mapping, NamedTuple, Tuple, List
 import flax.linen as nn
 import functools
 
-
 class Agent(ABC):
-    @abstractmethod
-    def init(self, key: PRNGKey, sample_obs: Any) -> Params: ...
+    """Abstract agent interface."""
 
-    @abstractmethod  # that gives the distribution
+    @abstractmethod
+    def init(self, key: PRNGKey, sample_obs: Any) -> AgentParameters: ...
+
+    @abstractmethod
     def policy(
-        self, params: Params, obs: Any
+        self, params: AgentParameters, obs: Any, key: PRNGKey
     ) -> Tuple[DistributionLike, Mapping[str, Any]]: ...
 
     @functools.partial(jax.jit, static_argnames=("self", "is_deterministic"))
     def action(
-        self, params: Params, obs: Any, key: PRNGKey, is_deterministic=False
+        self, params: AgentParameters, obs: Any, key: PRNGKey, is_deterministic=False
     ) -> Tuple[DistributionLike, Mapping[str, Any]]:
-        dist, info = self.policy(params, obs)
+        """Sample or select an action from the policy distribution."""
+        policy_key, sample_key = jax.random.split(key)
+        dist, info = self.policy(params, obs, policy_key)
         if is_deterministic:
             action = dist.mode()
             logp = dist.log_prob(action)
         else:
-            action, logp = dist.sample_and_log_prob(seed=key)
-            # if the action is multidimensional, take the sum of the logs
+            action, logp = dist.sample_and_log_prob(seed=sample_key)
             if isinstance(logp, jnp.ndarray) and logp.ndim > 1:
                 logp = jnp.sum(logp, axis=-1)
         return action, dict(
@@ -39,20 +58,25 @@ class Agent(ABC):
             **info,
         )
 
-    def value(self, params: Params, obs: Any) -> jnp.ndarray:  # optional
+    def value(self, params: Params, obs: Any) -> jnp.ndarray:
         raise NotImplementedError
 
 
-# A uniform action agent
-
-
 class BlankAgent(Agent):
-    def init(self, key: PRNGKey, sample_obs: Any, action_space: Any) -> Params:
-        self.action_space = action_space
-        self.batch_dim = sample_obs.shape[0]
-        return None
+    """A trivial agent that returns a uniform categorical policy."""
 
-    def policy(self, params: Params, obs: Any) -> Tuple[Any, Mapping[str, Any]]:
+    def __init__(self, env: EnvAdapter):
+        self.action_space = env.action_space()
+        if not hasattr(self.action_space, "n"):
+            raise ValueError("BlankAgent only supports discrete action spaces.")
+        self.batch_dim = None
+
+    def init(self, key: PRNGKey, sample_obs: Any) -> Params:
+        self.batch_dim = sample_obs.shape[0]
+        return {}
+
+    def policy(self, params: Params, obs: Any, key: PRNGKey) -> Tuple[Any, Mapping[str, Any]]:
+        """Return a uniform categorical distribution over actions."""
         pi = Categorical(logits=jnp.ones((self.batch_dim,) + (self.action_space.n,)))
         return pi, {}
 
@@ -60,123 +84,8 @@ class BlankAgent(Agent):
         return jnp.zeros(obs.shape[:-1])
 
 
-# An MLP-based Actor-Critic
-
-
-class MLP(nn.Module):
-    layer_sizes: List[int]
-
-    def setup(self):
-        self.dense_layers = [
-            nn.Dense(size, kernel_init=nn.initializers.orthogonal())
-            for size in self.layer_sizes
-        ]
-
-    def __call__(self, x):
-        for layer in self.dense_layers[:-1]:
-            x = layer(x)
-            x = nn.relu(x)
-        return self.dense_layers[-1](x)
-
-
-class MLP_dtsemnet(nn.Module):
-    tree_depth: int
-    action_dim: int
-
-    def setup(self):
-        self.weights = nn.Dense(
-            (2 ** (self.tree_depth) - 1),
-            kernel_init=nn.initializers.orthogonal(),
-            bias_init=nn.initializers.uniform(),
-        )
-
-    def __call__(self, x):
-
-        if len(x.shape) == 1:
-            x = jnp.array([x])
-
-        x = self.weights(x)
-
-        n_nodes = 2 ** (self.tree_depth) - 1
-        n_leaves = n_nodes + 1
-
-        row_indices = jnp.arange(2 * n_nodes)
-        col_indices = jnp.arange(n_nodes).repeat(2)
-        tiles = jnp.tile(jnp.array([1.0, -1.0]), n_nodes)
-        matrix = jnp.zeros((2 * n_nodes, n_nodes), dtype=jnp.float32)
-        matrix = matrix.at[row_indices, col_indices].set(tiles)
-
-        x = nn.relu(x @ matrix.T)
-
-        tree_representation = jnp.ones((n_leaves, 2 * n_nodes))
-        for i in range(n_leaves):
-            virtual_index = i + n_nodes
-            relevant_indices = jnp.zeros(self.tree_depth - 1)
-            replacement = jnp.ones(2 * n_nodes)
-            for j in range(self.tree_depth):
-                new_virtual_index = (virtual_index - 1) // 2
-                relevant_indices = relevant_indices.at[self.tree_depth - j].set(
-                    new_virtual_index
-                )
-                if virtual_index % 2 == 0:
-                    replacement_tile = jnp.array([0, 1])
-                else:
-                    replacement_tile = jnp.array([1, 0])
-                virtual_index = new_virtual_index
-                replacement = replacement.at[
-                    2 * virtual_index : 2 * virtual_index + 2
-                ].set(replacement_tile)
-            tree_representation = tree_representation.at[i].set(replacement)
-
-        appendice = jnp.zeros(
-            ((self.action_dim - (n_leaves % self.action_dim)), 2 * n_nodes)
-        )
-        tree_representation = jnp.concatenate((tree_representation, appendice), axis=0)
-
-        x = x @ tree_representation.T
-
-        x = x.reshape((x.shape[0], -1, self.action_dim))
-        x = x.max(axis=1)
-
-        return x
-
-
-class MLP_boolean(nn.Module):
-    n: int
-    action_dim: int
-
-    def setup(self):
-        self.weights = nn.Dense(
-            self.n,
-            kernel_init=nn.initializers.orthogonal(),
-            bias_init=nn.initializers.uniform(),
-        )
-
-    def __call__(self, x):
-
-        if len(x.shape) == 1:
-            x = jnp.array([x])
-
-        x = self.weights(x)
-
-        numbers = np.arange(2**self.n)
-
-        binary_strings = [np.binary_repr(num, width=self.n) for num in numbers]
-
-        function_representation = np.array(
-            [[1 if char == "1" else -1 for char in binary] for binary in binary_strings]
-        )
-        function_representation = jnp.array(function_representation)
-
-        x = x @ function_representation.T
-
-        x = x.reshape((x.shape[0], -1, self.action_dim))
-        x = x.max(axis=1)
-
-        return x
-
-
 class MLPPolicyValue(Agent):
+    """Actor-critic wrapper for discrete actions."""
 
     def __init__(self, config: dict, env: EnvAdapter, policy_architecture: str):
         self.config = config
@@ -198,45 +107,30 @@ class MLPPolicyValue(Agent):
 
         self.value_module = MLP(layer_sizes=self.config["value_layers"] + [1])
 
-    def init(self, key: PRNGKey, sample_obs: Any) -> Params:
-
+    def init(self, key: PRNGKey, sample_obs: Any) -> PolicyValueParameters:
         policy_key, value_key = jax.random.split(key, 2)
         policy_params = self.policy_module.init(policy_key, sample_obs)
         value_params = self.value_module.init(value_key, sample_obs)
-
-        return {
-            "policy": policy_params,
-            "value": value_params,
-        }
+        return PolicyValueParameters(policy=policy_params, value=value_params)
 
     @functools.partial(jax.jit, static_argnames=("self"))
-    def policy(self, params: Params, obs: Any) -> Tuple[Any, Mapping[str, Any]]:
-        logits = self.policy_module.apply(params["policy"], obs)
+    def policy(self, params: PolicyValueParameters, obs: Any, key: PRNGKey) -> Tuple[Any, Mapping[str, Any]]:
+        logits = self.policy_module.apply(params.policy, obs)
         if isinstance(logits, tuple):
             logits = logits[0]
         pi = Categorical(logits=logits)
         return pi, {}
 
-    def policy_activations(self, params, obs):
-        logits, state = self.policy_module.apply(
-            params["policy"], obs, capture_intermediates=True, mutable=["intermediates"]
-        )
-        intermediates = state["intermediates"]
-        if isinstance(logits, tuple):
-            logits = logits[0]
-        pi = Categorical(logits=logits)
-        return pi, intermediates
-
     @functools.partial(jax.jit, static_argnames=("self"))
-    def value(self, params: Params, obs: Any) -> jnp.ndarray:
-        value_out = self.value_module.apply(params["value"], obs)
+    def value(self, params: PolicyValueParameters, obs: Any) -> jnp.ndarray:
+        value_out = self.value_module.apply(params.value, obs)
         if isinstance(value_out, tuple):
             value_out = value_out[0]
         return jnp.squeeze(value_out, axis=-1)
 
 
 class MLPPolicyValueContinuous(Agent):
-
+    """Actor-critic wrapper for continuous actions."""
     def __init__(self, config: dict, env: EnvAdapter, policy_architecture: str):
         self.config = config
         self.n_actions = env.action_space().shape[0]
@@ -246,45 +140,80 @@ class MLPPolicyValueContinuous(Agent):
             )
         else:
             raise ValueError(f"Unknown policy architecture: {policy_architecture}")
-
         self.value_module = MLP(layer_sizes=self.config["value_layers"] + [1])
 
     def init(self, key: PRNGKey, sample_obs: Any) -> Params:
-
         policy_key, value_key = jax.random.split(key, 2)
         policy_params = self.policy_module.init(policy_key, sample_obs)
         value_params = self.value_module.init(value_key, sample_obs)
-
-        return {
-            "policy": policy_params,
-            "value": value_params,
-        }
+        return {"policy": policy_params, "value": value_params}
 
     @functools.partial(jax.jit, static_argnames=("self"))
-    def policy(self, params: Params, obs: Any) -> Tuple[Any, Mapping[str, Any]]:
-        distribution_parameters = self.policy_module.apply(params["policy"], obs)
+    def policy(self, params: PolicyValueParameters, obs: Any, key: PRNGKey) -> Tuple[Any, Mapping[str, Any]]:
+        distribution_parameters = self.policy_module.apply(params.policy, obs)
         if isinstance(distribution_parameters, tuple):
             distribution_parameters = distribution_parameters[0]
-        # the last layer gives the mean and the std for every action as the output
         pi = Normal(
             loc=distribution_parameters[..., : self.n_actions],
             scale=jax.nn.softplus(distribution_parameters[..., self.n_actions :]),
         )
         return pi, {}
 
-    def policy_activations(self, params, obs):
-        logits, state = self.policy_module.apply(
-            params["policy"], obs, capture_intermediates=True, mutable=["intermediates"]
-        )
-        intermediates = state["intermediates"]
-        if isinstance(logits, tuple):
-            logits = logits[0]
-        pi = Categorical(logits=logits)
-        return pi, intermediates
-
     @functools.partial(jax.jit, static_argnames=("self"))
-    def value(self, params: Params, obs: Any) -> jnp.ndarray:
-        value_out = self.value_module.apply(params["value"], obs)
+    def value(self, params: PolicyValueParameters, obs: Any) -> jnp.ndarray:
+        value_out = self.value_module.apply(params.value, obs)
         if isinstance(value_out, tuple):
             value_out = value_out[0]
         return jnp.squeeze(value_out, axis=-1)
+
+
+class MixtureAgent(Agent):
+    """An agent that mixes the policies of two agents with a given probability."""
+    def __init__(self, agents: Tuple[Agent, Agent], prob: float = 1.0):
+        self.agent1, self.agent2 = agents
+        self.prob = prob
+
+    def init(self, key: PRNGKey, sample_obs: Any) -> AgentParameters:
+        key1, key2 = jax.random.split(key)
+        params1 = self.agent1.init(key1, sample_obs)
+        params2 = self.agent2.init(key2, sample_obs)
+        return (params1, params2)
+
+    @functools.partial(jax.jit, static_argnames=("self",))
+    def policy(self, params: AgentParameters, obs: Any, key: PRNGKey) -> Tuple[DistributionLike, Mapping[str, Any]]:
+        params1, params2 = params
+        key1, key2, choice_key = jax.random.split(key, 3)
+        
+        dist1, info1 = self.agent1.policy(params1, obs, key1)
+        dist2, info2 = self.agent2.policy(params2, obs, key2)
+
+        use_agent1 = jax.random.uniform(choice_key) < self.prob
+        
+        # This assumes the distributions are of the same type (e.g., both Categorical)
+        # and can be reconstructed from their parameters.
+        # This will fail if mixing discrete and continuous agents.
+        selected_logits = jax.lax.cond(use_agent1, lambda: dist1.logits, lambda: dist2.logits)
+        selected_info = jax.lax.cond(use_agent1, lambda: info1, lambda: info2)
+
+        return type(dist1)(logits=selected_logits), selected_info
+
+    @functools.partial(jax.jit, static_argnames=("self", "is_deterministic"))
+    def action(self, params: AgentParameters, obs: Any, key: PRNGKey, is_deterministic: bool = False) -> Tuple[Any, Mapping[str, Any]]:
+        if is_deterministic:
+            params1, _ = params
+            return self.agent1.action(params1, obs, key, is_deterministic=True)
+        
+        # Replicate the logic from the base class's action method,
+        # as we cannot call super().action() inside a JIT-compiled function.
+        policy_key, sample_key = jax.random.split(key)
+        dist, info = self.policy(params, obs, policy_key)
+        
+        action, logp = dist.sample_and_log_prob(seed=sample_key)
+        if isinstance(logp, jnp.ndarray) and logp.ndim > 1:
+            logp = jnp.sum(logp, axis=-1)
+            
+        return action, dict(logp=logp, **info)
+
+    def value(self, params: AgentParameters, obs: Any) -> jnp.ndarray:
+        params1, _ = params
+        return self.agent1.value(params1, obs)

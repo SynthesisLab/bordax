@@ -1,4 +1,4 @@
-from bordax.agents.base import Agent
+from bordax.agents.base import Agent, BlankAgent, MixtureAgent
 from bordax.environments.utils import EnvAdapter, EnvState, EnvObs
 from bordax.types import PRNGKey, Params
 
@@ -37,6 +37,7 @@ class Collector(ABC):
         env: EnvAdapter,
         obs: EnvObs,
         env_state: EnvState,
+        replay_buffer: Any,
         agent: Agent,
         params: Params,
     ) -> Tuple[Tuple[Any, EnvState], Any]: ...
@@ -112,7 +113,7 @@ class OnPolicyCollector(Collector):
 
         return (obs, obs), buffer
 
-    def __call__(self, key, env, obs, env_state, agent: Agent, params):
+    def __call__(self, key, env, obs, env_state, replay_buffer: Any, agent: Agent, params):
 
         if env.is_jittable:
             (key, last_obs, last_env_state), traj = self.collect_jittable(
@@ -164,7 +165,43 @@ def compute_gae(traj_batch, last_value, values, gamma, gae_lambda):
 
 
 class EpsGreedyCollector(Collector):
-    pass
+    def __init__(self, epsilon: float, rollout_length: int = 1):
+        self.epsilon = epsilon
+        self.rollout_length = rollout_length
+
+    def __call__(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, env_state: EnvState, replay_buffer: Any, agent: Agent, params: Params) -> Tuple[Tuple[Any, EnvState], Any]:
+        
+        blank_agent = BlankAgent(env)
+        key, blank_agent_key = jax.random.split(key)
+        blank_params = blank_agent.init(blank_agent_key, obs)
+
+        mixture_agent = MixtureAgent(agents=(agent, blank_agent), prob=1-self.epsilon)
+        mixture_params = (params, blank_params)
+
+        for _ in range(self.rollout_length):
+            key, act_key, env_key = jax.random.split(key, 3)
+            
+            action, _ = mixture_agent.action(mixture_params, obs, act_key)
+            
+            n_obs, n_env_state, reward, done, _ = env.step(env_key, env_state, action)
+
+            transition = {
+                'obs': obs,
+                'action': action,
+                'reward': reward,
+                'next_obs': n_obs,
+                'done': done
+            }
+            # The buffer expects numpy arrays, so we convert them
+            transition = jax.tree_util.tree_map(lambda x: np.asarray(x) if hasattr(x, '__array__') else x, transition)
+            # The numpy buffer add method expects a batch, so we expand dims
+            transition = jax.tree_util.tree_map(lambda x: np.expand_dims(x, axis=0), transition)
+            replay_buffer.add(transition)
+
+            obs = n_obs
+            env_state = n_env_state
+
+        return (obs, env_state), replay_buffer
 
 
 class StochasticOffPolicyCollector(Collector):
