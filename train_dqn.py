@@ -7,11 +7,20 @@ import jax
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
+from datetime import datetime
+import os
 
 if __name__ == "__main__":
     print("=" * 70)
     print(" DQN - CartPole-v1")
     print("=" * 70)
+
+    # Create output directory for this run
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = f"runs/dqn_{timestamp}"
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"\n✓ Output directory: {output_dir}")
     
     # Environment configuration
     env_name = "gymnax/CartPole-v1"
@@ -127,8 +136,29 @@ if __name__ == "__main__":
     print(f"\nBest checkpoint: {best_checkpoint_index}")
     print(f"Best average reward: {average_evaluation_rewards[best_checkpoint_index]:.2f}")
 
+    # Save the parameters
+    if training_config.save_model:
+        export = {"agent": agent, "params": best_parameters}
+        model_path = os.path.join(output_dir, "best_model.pkl")
+        with open(model_path, "wb") as f:
+            pickle.dump(export, f)
+        print(f"\n✓ Model saved to '{model_path}'")
+
+    # Save metrics to file
+    metrics_path = os.path.join(output_dir, "metrics.pkl")
+    with open(metrics_path, "wb") as f:
+        pickle.dump(metrics, f)
+    print(f"✓ Metrics saved to '{metrics_path}'")
+    
+    # Save evaluation rewards
+    rewards_path = os.path.join(output_dir, "evaluation_rewards.npy")
+    np.save(rewards_path, average_evaluation_rewards)
+    print(f"✓ Evaluation rewards saved to '{rewards_path}'")
+
     print("\n✅ DQN training completed successfully!")
     
+    # Save training plots
+
     # Optional: Plot training metrics
     import seaborn as sns
     sns.set_theme(style="darkgrid")
@@ -144,6 +174,7 @@ if __name__ == "__main__":
     plt.grid(True)
         
     plt.tight_layout()
-    plt.savefig('dqn_training_results.png', dpi=150, bbox_inches='tight')
-    print(f"\n✓ Training plots saved to 'dqn_training_results.png'")
-    plt.show()
+    reward_plot_path = os.path.join(output_dir, "evaluation_rewards.png")
+    plt.savefig(reward_plot_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"\n✓ Training plots saved to '{reward_plot_path}'")

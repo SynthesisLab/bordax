@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     # Training configuration
     training_config = TrainerConfig(
-        num_checkpoints=400,
+        num_checkpoints=50,
         epochs_per_checkpoint=1,
         evaluation_episodes=10,
         debug=True,
