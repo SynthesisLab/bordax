@@ -22,6 +22,9 @@ class TrainerConfig:
     evaluation_episodes: int
     debug: bool
     save_model: bool
+    # Off-policy specific config
+    replay_buffer_capacity: Optional[int] = None  # If None, on-policy algorithm
+    warmup_steps: Optional[int] = None  # Steps to collect before training
 
 # A trainer takes an environment, an agent architecture, and an algorithm (and a config)
 class Trainer:
@@ -38,6 +41,7 @@ class Trainer:
         self.agent = agent
         self.algo = algo
         self.config = config
+        self.replay_buffer = None  # For off-policy algorithms
 
     def init(self, key: PRNGKey):
         key, env_key, init_key = jax.random.split(key, 3)
@@ -47,6 +51,30 @@ class Trainer:
         )
 
         assert self.eval_env.num_envs == 1
+        
+        # Initialize replay buffer for off-policy algorithms
+        if self.config.replay_buffer_capacity is not None:
+            from bordax.buffer import ReplayBuffer
+            obs_shape = self.env.obs_space().shape
+            action_shape = self.env.action_space().shape
+            self.replay_buffer = ReplayBuffer(
+                capacity=self.config.replay_buffer_capacity,
+                obs_shape=obs_shape,
+                action_shape=action_shape
+            )
+            
+            # Warmup: fill buffer with initial transitions
+            if self.config.warmup_steps is not None and self.config.warmup_steps > 0:
+                print(f"Warming up replay buffer with {self.config.warmup_steps} transitions...")
+                for i in range(self.config.warmup_steps):
+                    key, collect_key = jax.random.split(key)
+                    (self.last_obs, self.last_env_state), self.replay_buffer = self.algo.collect(
+                        collect_key, self.env, self.last_obs, self.last_env_state, 
+                        self.replay_buffer, self.agent, self.training_state
+                    )
+                    if (i + 1) % 200 == 0 and self.config.debug:
+                        print(f"  Warmup: {i+1}/{self.config.warmup_steps}, Buffer size: {len(self.replay_buffer)}")
+                print(f"Buffer filled with {len(self.replay_buffer)} transitions\n")
 
     @functools.partial(jax.jit, static_argnames=("self"))
     def evaluate_jittable(self, keys, params):
@@ -174,16 +202,21 @@ class Trainer:
         else:
             pbar = None
 
+        # Calculate total timesteps based on whether we have a replay buffer
+        rollout_len = getattr(self.algo.collector, 'rollout_length', 1)
+            
         print(
             "Total number of timesteps: ",
             self.config.num_checkpoints
             * self.config.epochs_per_checkpoint
-            * self.algo.collector.rollout_len, # type: ignore
+            * rollout_len,
         )
 
         key, training_key, evaluate_key = jax.random.split(key, 3)
 
-        if self.env.is_jittable:
+        # For on-policy algorithms with jittable envs, we can JIT the entire train_step
+        # For off-policy algorithms, train_step internally handles the non-jittable buffer
+        if self.env.is_jittable and self.replay_buffer is None:
             train_step_fixed = functools.partial(
                 self.algo.train_step, self.env, self.agent
             )
@@ -194,7 +227,8 @@ class Trainer:
         model_parameters = []
 
         for ckpt in range(self.config.num_checkpoints):
-            if self.env.is_jittable:
+            # On-policy with jittable environment
+            if self.env.is_jittable and self.replay_buffer is None:
                 for epoch in range(self.config.epochs_per_checkpoint):
                     (
                         training_key,
@@ -210,12 +244,13 @@ class Trainer:
                         self.last_env_state,
                     )
                     all_metrics.append(metrics)
+            # Off-policy or non-jittable environment
             else:
                 for epoch in range(self.config.epochs_per_checkpoint):
                     (
                         training_key,
                         self.training_state,
-                        _,
+                        self.replay_buffer,
                         self.last_obs,
                         self.last_env_state,
                     ), metrics = self.algo.train_step(
@@ -223,7 +258,7 @@ class Trainer:
                         self.agent,
                         training_key,
                         self.training_state,
-                        None,
+                        self.replay_buffer,
                         self.last_obs,
                         self.last_env_state,
                     )

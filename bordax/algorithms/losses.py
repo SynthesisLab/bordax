@@ -1,11 +1,12 @@
-from bordax.agents.base import Agent, DQNParameters
+from bordax.agents.base import Agent, DQNAgent, DQNParameters
 from bordax.types import PRNGKey, Params
 
 import jax
+import optax
 import jax.numpy as jnp
 
 from abc import ABC, abstractmethod
-from typing import Mapping, Tuple, Callable, Sequence
+from typing import Mapping, Tuple, Callable, Sequence, cast
 
 
 class LossFn(ABC):
@@ -35,7 +36,7 @@ class SurrogateLoss(LossFn):
             jax.lax.stop_gradient(batch["advantages"]),
         )
 
-        pi, info = agent.policy(params, obs)
+        pi, info = agent.policy(params, obs, key)
         logp = pi.log_prob(act)
 
         if act.ndim > 1:
@@ -78,7 +79,7 @@ class EntropyLoss(LossFn):
 
     def __call__(self, params, agent, batch, key, step):
         obs = batch["obs"]
-        pi, info = agent.policy(params, obs)
+        pi, info = agent.policy(params, obs, key)
         loss = -self.ent_coef_schedule(step) * pi.entropy().mean()
         metrics = {
             "entropy_loss": loss,
@@ -87,10 +88,15 @@ class EntropyLoss(LossFn):
 
 
 class DQNLoss(LossFn):
-    def __init__(self, gamma: float):
+    def __init__(self, gamma: float, applied_loss: Callable = optax.squared_error): # the canonical choice is Huber loss, but MSE can also be used
         self.gamma = gamma
+        self.applied_loss = applied_loss
 
     def __call__(self, params: DQNParameters, agent: Agent, batch: Mapping[str, jnp.ndarray], key: PRNGKey, step: jnp.ndarray):
+
+        assert isinstance(agent, DQNAgent), "DQN loss can only be used with a DQNAgent"
+        agent = cast(DQNAgent, agent)
+
         obs, action, reward, next_obs, done = (
             batch["obs"],
             batch["action"],
@@ -118,8 +124,8 @@ class DQNLoss(LossFn):
         # Compute target for Bellman equation
         target = reward + self.gamma * max_target_q_next_state * (1 - done)
 
-        # Compute the loss (MSE between predicted Q and target Q)
-        loss = jnp.mean(jnp.square(q_values_taken - jax.lax.stop_gradient(target)))
+        # Compute the loss
+        loss = self.applied_loss(q_values_taken, target).mean()
         
         metrics = {
             "dqn_loss": loss,

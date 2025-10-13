@@ -2,7 +2,7 @@ import jax
 import optax
 
 
-from typing import Any, NamedTuple
+from typing import Any, Callable, NamedTuple
 import functools
 
 from bordax.agents.base import Agent
@@ -56,7 +56,7 @@ class Algorithm(NamedTuple):
         agent: Agent,
         ts: TrainingState,
     ):
-        return self.collector(key, env, obs, env_state, replay_buffer, agent, ts.params)
+        return self.collector(key, env, obs, env_state, replay_buffer, agent, ts)
 
     @functools.partial(jax.jit, static_argnames=("self", "agent"))
     def update(self, agent: Agent, batch: Any, ts: TrainingState, key: PRNGKey):
@@ -89,7 +89,7 @@ class Algorithm(NamedTuple):
         batch = self.batch_builder(batch_key, replay_buffer)
         ts, metrics = self.update(agent, batch, ts, update_key)
 
-        return (key, ts, None, obs, env_state), metrics
+        return (key, ts, replay_buffer, obs, env_state), metrics
 
 
 def ppo_algo(
@@ -129,12 +129,13 @@ def ppo_algo(
     )
 
 def dqn_algo(
-    epsilon: float = 0.1,
+    epsilon_schedule: Callable[[int], float] = lambda t: 0.1,
     rollout_length: int = 1,
     batch_size: int = 32,
     gamma: float = 0.99,
     lr: float = 1e-4,
     target_update_freq: int = 1000,
+    applied_loss: Callable = optax.squared_error,
     **kwargs
 ):
     """Create a DQN algorithm.
@@ -146,6 +147,7 @@ def dqn_algo(
         gamma: Discount factor
         lr: Learning rate for the Q-network optimizer
         target_update_freq: How often to update target network (in training steps)
+        applied_loss: Loss function to use (e.g., Huber loss or MSE)
     
     Returns:
         Algorithm instance for DQN
@@ -155,22 +157,15 @@ def dqn_algo(
     from bordax.algorithms.losses import DQNLoss
     
     return Algorithm(
-        EpsGreedyCollector(epsilon=epsilon, rollout_length=rollout_length),
+        EpsGreedyCollector(epsilon_schedule=epsilon_schedule, rollout_length=rollout_length),
         UniformReplayBatch(batch_size),
         DQNUpdater(
             optimizer=optax.adam(lr),
-            loss_fn=DQNLoss(gamma=gamma),
+            loss_fn=DQNLoss(gamma=gamma, applied_loss=applied_loss),
             target_update_freq=target_update_freq,
         ),
     )
 
-
-# dqn_algo = Algorithm(
-#     EpsGreedyCollector(epsilon=0.1, gamma=0.99),
-#     UniformReplayBatch(32),
-#     DQNLoss(n_step=1, delta=1.0),
-#     TargetNetUpdater(AdamUpdater(1e-4), tau=None, update_interval=1000),  # hard update
-# )
 
 # a2c_algo = Algorithm(
 #     OnPolicyCollector(roullout_length=5, gamma=0.99),

@@ -1,8 +1,8 @@
 from bordax.agents.base import Agent, BlankAgent, MixtureAgent
 from bordax.environments.utils import EnvAdapter, EnvState, EnvObs
-from bordax.types import PRNGKey, Params
+from bordax.types import PRNGKey, Params, TrainingState
 
-from typing import Any, Tuple
+from typing import Any, Callable, Tuple
 import jax
 import jax.numpy as jnp
 
@@ -39,7 +39,7 @@ class Collector(ABC):
         env_state: EnvState,
         replay_buffer: Any,
         agent: Agent,
-        params: Params,
+        ts: TrainingState,
     ) -> Tuple[Tuple[Any, EnvState], Any]: ...
 
 
@@ -47,7 +47,7 @@ class OnPolicyCollector(Collector):
     def __init__(
         self, rollout_length: int = 1024, gamma: float = 0.99, _lambda: float = 0.99
     ):
-        self.rollout_len = rollout_length
+        self.rollout_length = rollout_length
         self.gamma = gamma
         self._lambda = _lambda
 
@@ -80,7 +80,7 @@ class OnPolicyCollector(Collector):
             one_step,
             (key, init_obs, init_state),
             None,
-            length=self.rollout_len,
+            length=self.rollout_length,
         )
 
         return (key, last_obs, last_env_state), traj
@@ -91,9 +91,9 @@ class OnPolicyCollector(Collector):
         env_spec = dict(
             obs_shape=env.obs_space().shape, action_shape=env.action_space().shape
         )
-        buffer = create_rollout_buffer(env_spec, env.num_envs, self.rollout_len)
+        buffer = create_rollout_buffer(env_spec, env.num_envs, self.rollout_length)
 
-        for i in range(self.rollout_len):
+        for i in range(self.rollout_length):
             key, act_key, env_key = jax.random.split(key, 3)
             buffer["obs"] = buffer["obs"].at[i].set(obs)
             action, action_info = agent.action(params, obs, act_key)
@@ -113,19 +113,19 @@ class OnPolicyCollector(Collector):
 
         return (obs, obs), buffer
 
-    def __call__(self, key, env, obs, env_state, replay_buffer: Any, agent: Agent, params):
+    def __call__(self, key, env, obs, env_state, replay_buffer: Any, agent: Agent, ts: TrainingState):
 
         if env.is_jittable:
             (key, last_obs, last_env_state), traj = self.collect_jittable(
-                key, env, obs, env_state, agent, params
+                key, env, obs, env_state, agent, ts.params
             )
         else:
             (last_obs, last_env_state), traj = self.collect_non_jittable(
-                key, env, obs, env_state, agent, params
+                key, env, obs, env_state, agent, ts.params
             )
         # calculating GAE
-        last_value = agent.value(params, last_obs)
-        values = agent.value(params, traj["obs"])
+        last_value = agent.value(ts.params, last_obs)
+        values = agent.value(ts.params, traj["obs"])
 
         advantages, targets = jax.lax.stop_gradient(
             compute_gae(traj, last_value, values, self.gamma, self._lambda)
@@ -165,26 +165,28 @@ def compute_gae(traj_batch, last_value, values, gamma, gae_lambda):
 
 
 class EpsGreedyCollector(Collector):
-    def __init__(self, epsilon: float, rollout_length: int = 1):
-        self.epsilon = epsilon
+    def __init__(self, epsilon_schedule: Callable[[int], float], rollout_length: int = 1):
+        self.epsilon_schedule = epsilon_schedule
         self.rollout_length = rollout_length
 
-    def __call__(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, env_state: EnvState, replay_buffer: Any, agent: Agent, params: Params) -> Tuple[Tuple[Any, EnvState], Any]:
-        
-        blank_agent = BlankAgent(env)
-        key, blank_agent_key = jax.random.split(key)
-        blank_params = blank_agent.init(blank_agent_key, obs)
-
-        mixture_agent = MixtureAgent(agents=(agent, blank_agent), prob=1-self.epsilon)
-        mixture_params = (params, blank_params)
-
-        for _ in range(self.rollout_length):
-            key, act_key, env_key = jax.random.split(key, 3)
+    @functools.partial(jax.jit, static_argnames=("self", "agent", "env"))
+    def _jit_collect(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, 
+                            env_state: EnvState, agent: Agent, params: Params, epsilon: float):
+        def one_step(carry, unused):
+            key, obs, env_state = carry
+            key, explore_key, act_key, env_key = jax.random.split(key, 4)
+            do_explore = jax.random.uniform(explore_key) < epsilon
+            action, _ = agent.action(params, obs, act_key)
+            if hasattr(env.action_space(), 'n'):
+                random_action = jax.random.randint(act_key, action.shape, 0, env.action_space().n)
+            else:
+                random_action = jax.random.uniform(act_key, action.shape, 
+                                                   minval=env.action_space().low,
+                                                   maxval=env.action_space().high)
             
-            action, _ = mixture_agent.action(mixture_params, obs, act_key)
-            
+            action = jax.lax.select(do_explore, random_action, action)
             n_obs, n_env_state, reward, done, _ = env.step(env_key, env_state, action)
-
+            
             transition = {
                 'obs': obs,
                 'action': action,
@@ -192,16 +194,45 @@ class EpsGreedyCollector(Collector):
                 'next_obs': n_obs,
                 'done': done
             }
-            # The buffer expects numpy arrays, so we convert them
-            transition = jax.tree_util.tree_map(lambda x: np.asarray(x, dtype=x.dtype if hasattr(x, 'dtype') else None), transition)
-            # Ensure actions are integers
-            transition['action'] = transition['action'].astype(np.int32)
-            # The numpy buffer add method expects a batch, so we expand dims
+            
+            return (key, n_obs, n_env_state), transition
+        
+        (key, final_obs, final_state), transitions = jax.lax.scan(
+            one_step,
+            (key, obs, env_state),
+            None,
+            length=self.rollout_length
+        )
+        
+        return (final_obs, final_state), transitions
+    
+    def _non_jittable_collect(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, 
+                              env_state: EnvState, agent: Agent, params: Params):
+        
+        raise NotImplementedError("Non-jittable environments are not supported yet.")
+
+    def __call__(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, env_state: EnvState, 
+                 replay_buffer: Any, agent: Agent, ts: TrainingState) -> Tuple[Tuple[Any, EnvState], Any]:
+        
+        epsilon = self.epsilon_schedule(ts.step.item())
+    
+        if env.is_jittable:
+            (obs, env_state), transitions = self._jit_collect(key, env, obs, env_state, agent, ts.params, epsilon)
+        else:
+            raise NotImplementedError("Non-jittable environments are not supported yet.")
+        
+        # Convert to numpy and add to buffer
+        # Flatten the rollout dimension for the buffer
+        for i in range(self.rollout_length):
+            transition = jax.tree_util.tree_map(lambda x: x[i], transitions)
+            # Convert to numpy
+            transition = jax.tree_util.tree_map(lambda x: np.asarray(x), transition)
+            # Ensure actions are integers for discrete spaces
+            if transition['action'].dtype != np.int32 and transition['action'].ndim <= 1:
+                transition['action'] = transition['action'].astype(np.int32)
+            # Expand dims for batch
             transition = jax.tree_util.tree_map(lambda x: np.expand_dims(x, axis=0), transition)
             replay_buffer.add(transition)
-
-            obs = n_obs
-            env_state = n_env_state
 
         return (obs, env_state), replay_buffer
 
