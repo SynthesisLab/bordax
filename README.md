@@ -70,7 +70,7 @@ Expected results:
 - Solves CartPole-v1 (reward = 500) in ~100k steps
 - Training time: ~6 seconds on CPU
 
-![PPO Training Rewards](https://github.com/SynthesisLab/bordax/blob/main/imgs/ppo_cartpole_rewards.png?raw=true)
+![PPO Training Rewards](https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_ppo.png?raw=true)
 
 ### Training DQN on CartPole
 
@@ -82,7 +82,7 @@ Expected results:
 - Solves CartPole-v1 (reward = 500) in ~50k steps
 - Training time: ~30 seconds on CPU
 
-![DQN Training Rewards](https://github.com/SynthesisLab/bordax/blob/main/imgs/dqn_cartpole_rewards.png?raw=true)
+![DQN Training Rewards](https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_dqn.png?raw=true)
 
 ### Custom Training Script
 
