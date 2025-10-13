@@ -134,7 +134,7 @@ if __name__ == "__main__":
     sns.set_theme(style="darkgrid")
     
     # Evaluation rewards over checkpoints
-    plt.plot(average_evaluation_rewards, marker='o', markersize=3)
+    plt.plot(average_evaluation_rewards)
     plt.axhline(y=average_evaluation_rewards.max(), color='r', linestyle='--', 
                        label=f'Best: {average_evaluation_rewards.max():.1f}')
     plt.xlabel('Checkpoint')
