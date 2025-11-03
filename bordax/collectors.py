@@ -102,7 +102,7 @@ class OnPolicyCollector(Collector):
         for i in range(self.rollout_length):
             key, act_key, env_key = jax.random.split(key, 3)
             
-            buffer["obs"][i] = np.asarray(obs)
+            buffer["obs"][i] = obs
             
             
             action, action_info = agent.action(params, obs, act_key) # Agent methods return jax arrays
@@ -235,17 +235,10 @@ class EpsGreedyCollector(Collector):
         else:
             raise NotImplementedError("Non-jittable environments are not supported yet.")
         
-        # Convert to numpy and add to buffer
-        # Flatten the rollout dimension for the buffer
+        transitions_np = jax.tree_util.tree_map(np.asarray, transitions)
+
         for i in range(self.rollout_length):
-            transition = jax.tree_util.tree_map(lambda x: x[i], transitions)
-            # Convert to numpy
-            transition = jax.tree_util.tree_map(lambda x: np.asarray(x), transition)
-            # Ensure actions are integers for discrete spaces
-            if transition['action'].dtype != np.int32 and transition['action'].ndim <= 1:
-                transition['action'] = transition['action'].astype(np.int32)
-            # Expand dims for batch
-            transition = jax.tree_util.tree_map(lambda x: np.expand_dims(x, axis=0), transition)
+            transition = jax.tree_util.tree_map(lambda x: x[i:i+1], transitions_np)
             replay_buffer.add(transition)
 
         return (obs, env_state), replay_buffer
