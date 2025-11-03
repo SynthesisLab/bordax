@@ -30,7 +30,7 @@ if __name__ == "__main__":
     }
     num_envs = 1
     env = make_env(env_name, env_config, num_envs)
-    eval_env = make_env(env_name, env_config, num_envs)
+    eval_env = make_env(env_name, env_config, 1)  # Single environment for evaluation
     
     print(f"\n✓ Environment: {env_name}")
     print(f"  - Observation space: {env.obs_space()}")
@@ -61,6 +61,7 @@ if __name__ == "__main__":
         "_lambda": 0.95,
         "num_minibatches": 16,
         "num_sgd_steps": 10,
+        "num_envs": num_envs,
     }
     algorithm = make_algo(algo_name, algo_config)
     

@@ -106,6 +106,7 @@ def ppo_algo(
     ent_schedule=lambda _: 0.01,
     num_minibatches=16,
     num_sgd_steps=1,
+    num_envs: int = 1,
     **kwargs
 ):
 
@@ -116,7 +117,7 @@ def ppo_algo(
         OnPolicyCollector(rollout_length, gamma, _lambda),
         ComposedBatchBuilder(
             (
-                FullBufferBatch(rollout_length, 1),
+                FullBufferBatch(rollout_length, num_envs),
                 MiniBatch(num_minibatches),
                 NormalizeAdvantagesTargets(),
             ),

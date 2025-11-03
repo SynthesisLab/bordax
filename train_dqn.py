@@ -28,9 +28,9 @@ if __name__ == "__main__":
         "init_config": {},
         "reset_config": {}, 
     }
-    num_envs = 1  # DQN typically uses single environment
+    num_envs = 1
     env = make_env(env_name, env_config, num_envs)
-    eval_env = make_env(env_name, env_config, num_envs)
+    eval_env = make_env(env_name, env_config, 1)  # Single environment for evaluation
     
     print(f"\n✓ Environment: {env_name}")
     print(f"  - Observation space: {env.obs_space()}")

@@ -50,7 +50,8 @@ class Trainer:
             self.agent, init_key, self.last_obs, self.env
         )
 
-        assert self.eval_env.num_envs == 1
+        # Evaluation environment must be single-environment (num_envs=1)
+        assert self.eval_env.num_envs == 1, f"eval_env must have num_envs=1, got {self.eval_env.num_envs}"
         
         # Initialize replay buffer for off-policy algorithms
         if self.config.replay_buffer_capacity is not None:
@@ -117,7 +118,6 @@ class Trainer:
             )
 
             obs_seq, state_seq, action_seq, reward_seq, done_seq, info_seq = traj
-            print(obs_seq.shape)
             obs_seq = jnp.squeeze(obs_seq, axis=1)
             state_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), state_seq)
             action_seq = jnp.squeeze(action_seq, axis=1)
