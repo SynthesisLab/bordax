@@ -12,6 +12,10 @@ from bordax.types import PRNGKey, TrainingState
 from bordax.collectors import Collector
 from bordax.updaters import Updater
 
+from bordax.batchbuilders import UniformReplayBatch
+from bordax.updaters import DQNUpdater
+from bordax.algorithms.losses import DQNLoss
+
 from bordax.algorithms.losses import PPOLoss
 from bordax.batchbuilders import (
     FullBufferBatch,
@@ -152,9 +156,6 @@ def dqn_algo(
     Returns:
         Algorithm instance for DQN
     """
-    from bordax.batchbuilders import UniformReplayBatch
-    from bordax.updaters import DQNUpdater
-    from bordax.algorithms.losses import DQNLoss
     
     return Algorithm(
         EpsGreedyCollector(epsilon_schedule=epsilon_schedule, rollout_length=rollout_length),

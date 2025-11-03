@@ -11,23 +11,6 @@ import functools
 import numpy as np
 
 
-def create_rollout_buffer(env_spec, num_envs, num_steps) -> dict:
-    buffer = {
-        "obs": jnp.zeros(
-            (num_steps, num_envs) + env_spec["obs_shape"], dtype=jnp.float32
-        ),
-        "action": jnp.zeros(
-            (num_steps, num_envs) + env_spec["action_shape"], dtype=jnp.int32
-        ),
-        "value": jnp.zeros((num_steps, num_envs), dtype=jnp.float32),
-        "reward": jnp.zeros((num_steps, num_envs), dtype=jnp.float32),
-        "done": jnp.zeros((num_steps, num_envs), dtype=jnp.bool),
-        "info": {"logp": jnp.zeros((num_steps, num_envs), dtype=jnp.float32)},
-    }
-
-    return buffer
-
-
 class Collector(ABC):
 
     @abstractmethod
@@ -88,33 +71,63 @@ class OnPolicyCollector(Collector):
     def collect_non_jittable(
         self, key, env: EnvAdapter, obs, env_state, agent: Agent, params
     ):
+        # Since non-jittable environments are executed on CPU,
+        # it makes sense to save data in numpy arrays directly
+        # and eventually convert to JAX arrays and send them to device
+
+        # It is, however, possibly a bottleneck as the data transfer for each step
+        # between the device and the host may be slow
+
         env_spec = dict(
             obs_shape=env.obs_space().shape, action_shape=env.action_space().shape
         )
-        buffer = create_rollout_buffer(env_spec, env.num_envs, self.rollout_length)
+        
+        buffer = {
+            "obs": np.zeros(
+                (self.rollout_length, env.num_envs) + env_spec["obs_shape"],
+                dtype=np.float32,
+            ),
+            "action": np.zeros(
+                (self.rollout_length, env.num_envs) + env_spec["action_shape"],
+                dtype=np.int32,
+            ),
+            "value": np.zeros((self.rollout_length, env.num_envs), dtype=np.float32),
+            "reward": np.zeros((self.rollout_length, env.num_envs), dtype=np.float32),
+            "done": np.zeros((self.rollout_length, env.num_envs), dtype=np.bool_),
+            "info": {
+                "logp": np.zeros((self.rollout_length, env.num_envs), dtype=np.float32)
+            },
+        }
 
         for i in range(self.rollout_length):
             key, act_key, env_key = jax.random.split(key, 3)
-            buffer["obs"] = buffer["obs"].at[i].set(obs)
-            action, action_info = agent.action(params, obs, act_key)
+            
+            buffer["obs"][i] = np.asarray(obs)
+            
+            
+            action, action_info = agent.action(params, obs, act_key) # Agent methods return jax arrays
             value = agent.value(params, obs)
+
             n_obs, n_env_state, reward, done, env_info = env.step(
                 act_key, env_state, np.asarray(action)
             )
-            buffer["action"] = buffer["action"].at[i].set(action)
-            buffer["value"] = buffer["value"].at[i].set(value)
-            buffer["reward"] = buffer["reward"].at[i].set(reward)
-            buffer["done"] = buffer["done"].at[i].set(done)
-            buffer["info"]["logp"] = (
-                buffer["info"]["logp"].at[i].set(action_info["logp"])
-            )
+            
+            buffer["action"][i] = np.asarray(action)
+            buffer["value"][i] = np.asarray(value)
+            buffer["reward"][i] = np.asarray(reward)
+            buffer["done"][i] = np.asarray(done)
+            buffer["info"]["logp"][i] = np.asarray(action_info["logp"])
+            
             obs = n_obs
             env_state = n_env_state
 
-        return (obs, obs), buffer
+        # Convert everything to jax arrays
+        traj = jax.tree_util.tree_map(jnp.asarray, buffer)
+
+        return (obs, env_state), traj
 
     def __call__(self, key, env, obs, env_state, replay_buffer: Any, agent: Agent, ts: TrainingState):
-
+        # Collect rollout (returns JAX arrays in both cases)
         if env.is_jittable:
             (key, last_obs, last_env_state), traj = self.collect_jittable(
                 key, env, obs, env_state, agent, ts.params
@@ -123,7 +136,8 @@ class OnPolicyCollector(Collector):
             (last_obs, last_env_state), traj = self.collect_non_jittable(
                 key, env, obs, env_state, agent, ts.params
             )
-        # calculating GAE
+        
+        # Calculate GAE (traj is JAX arrays here)
         last_value = agent.value(ts.params, last_obs)
         values = agent.value(ts.params, traj["obs"])
 
