@@ -119,7 +119,7 @@ def ppo_algo(
             (
                 FullBufferBatch(rollout_length, num_envs),
                 MiniBatch(num_minibatches),
-                NormalizeAdvantagesTargets(),
+                NormalizeAdvantagesTargets(normalize_targets=False),
             ),
         ),
         SGDUpdate(
