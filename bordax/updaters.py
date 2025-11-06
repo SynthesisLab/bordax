@@ -49,9 +49,15 @@ class SGDUpdate(Updater):
             (new_optimizer_state, new_params, key), metrics = jax.lax.scan(
                 minibatch_step, (optimizer_state, params, step_key), minibatches)
 
+            metrics = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), metrics)
+
             return (new_optimizer_state, new_params, key), metrics
         
-        (new_optimizer_state, new_params, _), metrics = jax.lax.scan(sgd_step, (ts.optimizer_state, ts.params, key), length=self.num_sgd_steps) 
+        (new_optimizer_state, new_params, _), metrics = jax.lax.scan(
+            sgd_step, (ts.optimizer_state, ts.params, key), length=self.num_sgd_steps
+        )
+
+        metrics = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), metrics)
 
         return TrainingState(new_optimizer_state, new_params, ts.step + 1), metrics
 

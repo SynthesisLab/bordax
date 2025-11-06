@@ -63,6 +63,7 @@ if __name__ == "__main__":
         "num_sgd_steps": 10,
         "num_envs": num_envs,
     }
+    ROLLOUT_TOTAL = algo_config["rollout_length"] * algo_config["num_envs"]
     algorithm = make_algo(algo_name, algo_config)
     
     print(f"\n✓ Algorithm: {algo_name}")
@@ -117,27 +118,22 @@ if __name__ == "__main__":
     print(f"Training time: {end_time - start_time:.2f}s")
     print(f"Total checkpoints: {len(metrics)}")
     
-    if metrics:
-        # PPO metrics have shape (num_sgd_steps, num_minibatches) due to nested scans
-        # Take mean across both dimensions for reporting
-        print(f"Initial total loss: {float(metrics[0]['total_loss'].mean()):.4f}")
-        print(f"Final total loss: {float(metrics[-1]['total_loss'].mean()):.4f}")
-        print(f"Initial value loss: {float(metrics[0]['value_loss'].mean()):.4f}")
-        print(f"Final value loss: {float(metrics[-1]['value_loss'].mean()):.4f}")
 
     # Compute average evaluation rewards per checkpoint
-    average_evaluation_rewards = []
-    for rollout in data:
-        first_done_indices = np.argmax(rollout["done"], axis=1)
-        cum_sum = np.cumsum(rollout["reward"], axis=1)
-        first_rewards = cum_sum[
-            np.arange(cum_sum.shape[0]),
-            first_done_indices,
-        ]
-        average_evaluation_rewards.append(first_rewards.mean())
+    eval_rewards = []
+    eval_timesteps = []
+    steps_per_checkpoint = training_config.epochs_per_checkpoint * ROLLOUT_TOTAL
+    for idx, rollout in enumerate(data, start=1):
+        if not rollout:
+            continue
+        returns = np.asarray(rollout["return"], dtype=np.float32)
+        if returns.size == 0:
+            continue
+        eval_rewards.append(float(np.mean(returns)))
+        eval_timesteps.append(idx * steps_per_checkpoint)
 
     # Find the checkpoint with highest average evaluation reward
-    average_evaluation_rewards = np.array(average_evaluation_rewards)
+    average_evaluation_rewards = np.array(eval_rewards)
     best_checkpoint_index = np.argmax(average_evaluation_rewards)
     best_parameters = model_parameters[best_checkpoint_index]
     
@@ -171,7 +167,7 @@ if __name__ == "__main__":
     
     # Plot 1: Evaluation rewards
     plt.figure(figsize=(8, 6))
-    plt.plot(average_evaluation_rewards, marker='o', markersize=3)
+    plt.plot(eval_timesteps, average_evaluation_rewards, marker='o', markersize=3)
     plt.axhline(y=average_evaluation_rewards.max(), color='r', linestyle='--', 
                 label=f'Best: {average_evaluation_rewards.max():.1f}')
     plt.xlabel('Checkpoint')
@@ -184,48 +180,6 @@ if __name__ == "__main__":
     plt.savefig(eval_plot_path, dpi=150, bbox_inches='tight')
     plt.close()
     
-    # Plot 2: Policy loss (surrogate loss)
-    plt.figure(figsize=(8, 6))
-    policy_losses = [m['loss'].mean() for m in metrics]
-    plt.plot(policy_losses, alpha=0.7)
-    plt.xlabel('Checkpoint')
-    plt.ylabel('Policy Loss')
-    plt.title('Policy Loss Over Training')
-    plt.grid(True)
-    plt.tight_layout()
-    policy_plot_path = os.path.join(output_dir, "policy_loss.png")
-    plt.savefig(policy_plot_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # Plot 3: Value loss
-    plt.figure(figsize=(8, 6))
-    value_losses = [m['value_loss'].mean() for m in metrics]
-    plt.plot(value_losses, alpha=0.7)
-    plt.xlabel('Checkpoint')
-    plt.ylabel('Value Loss')
-    plt.title('Value Loss Over Training')
-    plt.grid(True)
-    plt.tight_layout()
-    value_plot_path = os.path.join(output_dir, "value_loss.png")
-    plt.savefig(value_plot_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # Plot 4: Entropy loss (negative entropy)
-    plt.figure(figsize=(8, 6))
-    entropy_losses = [m['entropy_loss'].mean() for m in metrics]
-    plt.plot(entropy_losses, alpha=0.7)
-    plt.xlabel('Checkpoint')
-    plt.ylabel('Entropy Loss')
-    plt.title('Entropy Loss Over Training')
-    plt.grid(True)
-    plt.tight_layout()
-    entropy_plot_path = os.path.join(output_dir, "entropy_loss.png")
-    plt.savefig(entropy_plot_path, dpi=150, bbox_inches='tight')
-    plt.close()
     
     print(f"\n✓ Plots saved to '{output_dir}/':")
     print(f"  - {os.path.basename(eval_plot_path)}")
-    print(f"  - {os.path.basename(policy_plot_path)}")
-    print(f"  - {os.path.basename(value_plot_path)}")
-    print(f"  - {os.path.basename(entropy_plot_path)}")
-

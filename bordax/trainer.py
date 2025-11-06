@@ -25,6 +25,8 @@ class TrainerConfig:
     # Off-policy specific config
     replay_buffer_capacity: Optional[int] = None  # If None, on-policy algorithm
     warmup_steps: Optional[int] = None  # Steps to collect before training
+    # Evaluation config
+    enable_evaluation: bool = True  # If False, skip evaluation entirely
 
 # A trainer takes an environment, an agent architecture, and an algorithm (and a config)
 class Trainer:
@@ -125,39 +127,39 @@ class Trainer:
             done_seq = jnp.squeeze(done_seq, axis=1)
             info_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), info_seq)
 
-            return {
-                "obs": obs_seq,
-                "state": state_seq,
-                "action": action_seq,
-                "reward": reward_seq,
-                "done": done_seq,
-                "info": info_seq,
-            }
+            return reward_seq, done_seq
 
-        data = jax.vmap(evaluate_one_episode)(keys)
-        return data
+        reward_seq, done_seq = jax.vmap(evaluate_one_episode)(keys)
+
+        def summarize_episode(rewards, dones):
+            num_steps = rewards.shape[0]
+            indices = jnp.arange(num_steps)
+            done_indices = jnp.asarray(jnp.where(dones, indices, num_steps), dtype=jnp.int32)
+            first_done = jnp.min(done_indices)
+            length = jnp.minimum(first_done + 1, num_steps)
+            mask = indices < length
+            total_reward = jnp.sum(jnp.where(mask, rewards, 0.0))
+            return total_reward, length
+
+        returns, lengths = jax.vmap(summarize_episode)(reward_seq, done_seq)
+        return {
+            "return": returns,
+            "length": lengths,
+        }
 
     def evaluate_non_jittable(self, keys, params):
         num_steps = self.eval_env.env_params.max_steps_in_episode
         num_envs = len(keys)
-        env_spec = dict(
-            obs_shape=self.env.obs_space().shape, action_shape=self.env.action_space().shape
-        )
-        buffer = {
-            "obs": np.zeros((num_envs, num_steps) + env_spec["obs_shape"]),
-            "state": np.zeros((num_envs, num_steps) + env_spec["obs_shape"]),
-            "action": np.zeros((num_envs, num_steps) + env_spec["action_shape"]),
-            "reward": np.zeros((num_envs, num_steps)),
-            "done": np.zeros((num_envs, num_steps), dtype=np.bool),
-            "info": {"logp": np.zeros((num_envs, num_steps))},
-        }
-
-        info_keys = ["logp"]
+        episode_returns = np.zeros(num_envs, dtype=np.float32)
+        episode_lengths = np.zeros(num_envs, dtype=np.int32)
 
         for episode, key in enumerate(keys):
             run_key, reset_key = jax.random.split(key, 2)
 
             obs, env_state = self.eval_env.reset(reset_key)
+
+            total_reward = 0.0
+            steps = 0
 
             for step in range(num_steps):
                 action, _ = self.agent.action(
@@ -167,18 +169,11 @@ class Trainer:
                     run_key, env_state, np.asarray(action)
                 )
 
-                # Ensure reward and done are numpy arrays
-                reward = np.asarray(reward)
-                done = np.asarray(done)
+                reward = float(np.asarray(reward))
+                done = bool(np.asarray(done))
 
-                buffer["obs"][episode, step] = obs
-                buffer["state"][episode, step] = env_state
-                buffer["action"][episode, step] = action[0]
-                buffer["reward"][episode, step] = reward
-                buffer["done"][episode, step] = done
-                for key in info:
-                    # if key in info_keys:
-                    buffer["info"][key][episode, step] = info[key]
+                total_reward += reward
+                steps += 1
 
                 obs = n_obs
                 env_state = n_state
@@ -186,7 +181,13 @@ class Trainer:
                 if done:
                     break
 
-        return buffer
+            episode_returns[episode] = total_reward
+            episode_lengths[episode] = steps
+
+        return {
+            "return": episode_returns,
+            "length": episode_lengths,
+        }
 
     def evaluate(self, key: PRNGKey, params):
         evaluation_keys = jax.random.split(key, self.config.evaluation_episodes)
@@ -216,6 +217,7 @@ class Trainer:
 
         # For on-policy algorithms with jittable envs, we can JIT the entire train_step
         # For off-policy algorithms, train_step internally handles the non-jittable buffer
+        train_step = None
         if self.env.is_jittable and self.replay_buffer is None:
             train_step_fixed = functools.partial(
                 self.algo.train_step, self.env, self.agent
@@ -227,8 +229,11 @@ class Trainer:
         model_parameters = []
 
         for ckpt in range(self.config.num_checkpoints):
+            metrics_accum = None
+            metric_updates = 0
             # On-policy with jittable environment
             if self.env.is_jittable and self.replay_buffer is None:
+                assert train_step is not None
                 for epoch in range(self.config.epochs_per_checkpoint):
                     (
                         training_key,
@@ -243,7 +248,13 @@ class Trainer:
                         self.last_obs,
                         self.last_env_state,
                     )
-                    all_metrics.append(metrics)
+                    if metrics is not None:
+                        metrics_accum = (
+                            metrics
+                            if metrics_accum is None
+                            else jax.tree_util.tree_map(lambda a, b: a + b, metrics_accum, metrics)
+                        )
+                        metric_updates += 1
             # Off-policy or non-jittable environment
             else:
                 for epoch in range(self.config.epochs_per_checkpoint):
@@ -262,11 +273,30 @@ class Trainer:
                         self.last_obs,
                         self.last_env_state,
                     )
-                    all_metrics.append(metrics)
+                    if metrics is not None:
+                        metrics_accum = (
+                            metrics
+                            if metrics_accum is None
+                            else jax.tree_util.tree_map(lambda a, b: a + b, metrics_accum, metrics)
+                        )
+                        metric_updates += 1
 
-            epoch_rollouts.append(
-                self.evaluate(evaluate_key, self.training_state.params)
-            )
+            if self.config.enable_evaluation:
+                eval_result = self.evaluate(evaluate_key, self.training_state.params)
+                eval_result = jax.tree_util.tree_map(np.asarray, eval_result)
+                epoch_rollouts.append(
+                    {
+                        "return": eval_result["return"].astype(np.float32).tolist(),
+                        "length": eval_result["length"].astype(np.int32).tolist(),
+                    }
+                )
+            
+            if metrics_accum is not None:
+                averaged_metrics = jax.tree_util.tree_map(
+                    lambda x: x / metric_updates, metrics_accum
+                )
+                averaged_metrics = jax.device_get(averaged_metrics)
+                all_metrics.append({k: float(v) for k, v in averaged_metrics.items()})
 
             model_parameters.append(self.training_state.params)
 

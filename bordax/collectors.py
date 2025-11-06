@@ -42,7 +42,6 @@ class OnPolicyCollector(Collector):
             key, obs, env_state = carry
             key, act_key, env_key = jax.random.split(key, 3)
             action, info = agent.action(params, obs, act_key)
-            value = agent.value(params, obs)
 
             n_obs, n_env_state, reward, done, env_info = env.step(
                 env_key, env_state, action
@@ -51,7 +50,6 @@ class OnPolicyCollector(Collector):
             transition = dict(
                 obs=obs,
                 action=action,
-                value=value,
                 reward=reward,
                 done=done,
                 info=info,
@@ -106,20 +104,23 @@ class OnPolicyCollector(Collector):
             
             
             action, action_info = agent.action(params, obs, act_key) # Agent methods return jax arrays
-            value = agent.value(params, obs)
+            # value = agent.value(params, obs)
 
             n_obs, n_env_state, reward, done, env_info = env.step(
                 act_key, env_state, np.asarray(action)
             )
             
             buffer["action"][i] = np.asarray(action)
-            buffer["value"][i] = np.asarray(value)
+            # buffer["value"][i] = np.asarray(value)
             buffer["reward"][i] = np.asarray(reward)
             buffer["done"][i] = np.asarray(done)
             buffer["info"]["logp"][i] = np.asarray(action_info["logp"])
             
             obs = n_obs
             env_state = n_env_state
+        # convert all collected observations to jax array and get the values from the agent
+        values = agent.value(params, jnp.asarray(buffer["obs"]))
+        buffer["value"] = np.asarray(values)
 
         # Convert everything to jax arrays
         traj = jax.tree_util.tree_map(jnp.asarray, buffer)
