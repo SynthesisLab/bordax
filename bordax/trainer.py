@@ -121,11 +121,11 @@ class Trainer:
 
             obs_seq, state_seq, action_seq, reward_seq, done_seq, info_seq = traj
             obs_seq = jnp.squeeze(obs_seq, axis=1)
-            state_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), state_seq)
+            state_seq = jax.tree.map(lambda s: jnp.squeeze(s, axis=1), state_seq)
             action_seq = jnp.squeeze(action_seq, axis=1)
             reward_seq = jnp.squeeze(reward_seq, axis=1)
             done_seq = jnp.squeeze(done_seq, axis=1)
-            info_seq = jax.tree_map(lambda s: jnp.squeeze(s, axis=1), info_seq)
+            info_seq = jax.tree.map(lambda s: jnp.squeeze(s, axis=1), info_seq)
 
             return reward_seq, done_seq
 

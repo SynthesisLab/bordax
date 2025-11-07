@@ -12,10 +12,6 @@ import gymnasium
 from typing import TYPE_CHECKING, Any, Tuple, Mapping, Dict
 from bordax.types import PRNGKey
 
-import gymnasium_robotics
-
-gymnasium.register_envs(gymnasium_robotics)
-
 EnvState = Any
 EnvObs = Any
 Space = Any
@@ -124,44 +120,6 @@ class EnvGymnasiumAdapter(EnvAdapter):
         return self.env.single_observation_space
 
 
-class EnvGymnasiumGoalAdapter(EnvAdapter):
-
-    def __init__(self, env_name: str, env_config, num_envs: int = 1):
-        self.is_jittable = False
-        self.num_envs = num_envs
-        self.config = env_config
-
-        prefix, name = env_name.split("/", 1)
-        if prefix == "gymnasium-robotics":
-            self.env = gymnasium.make_vec(name, num_envs=self.num_envs, **self.config["init_config"])
-
-        self.env_params = EnvParams(
-            max_steps_in_episode=self.env.spec.max_episode_steps
-        )
-
-    def reset(self, key: PRNGKey):
-        seed = jax.random.key_data(key)[1].item()
-        obs, info = self.env.reset(seed=seed, **self.config["reset_config"])
-        obs = obs["observation"]
-        return obs, obs
-
-    def step(self, key: PRNGKey, state: Any, action: Any):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        done = terminated | truncated
-        current = obs["achieved_goal"]
-        desired = obs["desired_goal"]
-        obs = obs["observation"]
-        info["current_goal"] = current
-        info["desired_goal"] = desired
-        return obs, obs, reward, done, info
-
-    def action_space(self):
-        return self.env.single_action_space
-
-    def obs_space(self):
-        return self.env.single_observation_space["observation"]
-
-
 def make_env(env_name: str, env_config, num_envs: int = 1) -> EnvAdapter:
 
     if len(env_name.split("/")) > 1:
@@ -170,8 +128,6 @@ def make_env(env_name: str, env_config, num_envs: int = 1) -> EnvAdapter:
             return EnvGymnaxAdapter(env_name, env_config, num_envs)
         elif env_name.split("/")[0] == "gymnasium":
             return EnvGymnasiumAdapter(env_name, env_config, num_envs)
-        elif env_name.split("/")[0] == "gymnasium-robotics":
-            return EnvGymnasiumGoalAdapter(env_name, env_config, num_envs)
         else:
             raise ValueError(f"Unknown environment prefix: {env_name.split("/")[0]}")
     else:
