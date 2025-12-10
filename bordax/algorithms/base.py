@@ -10,10 +10,10 @@ from bordax.environments.utils import EnvAdapter, EnvState, EnvObs
 from bordax.batchbuilders import BatchBuilder
 from bordax.types import PRNGKey, TrainingState
 from bordax.collectors import Collector
-from bordax.updaters import Updater
+from bordax.training.updaters import Updater
 
 from bordax.batchbuilders import UniformReplayBatch
-from bordax.updaters import DQNUpdater
+from bordax.training.updaters import DQNUpdater
 from bordax.algorithms.losses import DQNLoss
 
 from bordax.algorithms.losses import PPOLoss
@@ -29,7 +29,7 @@ from bordax.collectors import (
     StochasticOffPolicyCollector,
     DeterministicOffPolicyCollector,
 )
-from bordax.updaters import SGDUpdate
+from bordax.training.updaters import SGDUpdate
 
 # The algorithm, e.g., PPO or VPG or DQN
 # The algorithms vary in how they

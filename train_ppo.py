@@ -1,4 +1,4 @@
-from bordax.trainer import Trainer, TrainerConfig
+from bordax.training.trainer import Trainer, TrainerConfig
 from bordax.algorithms.utils import make_algo
 from bordax.environments.utils import make_env
 from bordax.agents.utils import make_agent
