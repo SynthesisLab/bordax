@@ -109,14 +109,13 @@ if __name__ == "__main__":
     print(" Starting Training")
     print("="*70)
     start_time = time.time()
-    metrics, data = trainer.run(key)
+    data = trainer.run(key)
     end_time = time.time()
     
     print(f"\n{'='*70}")
     print(" Training Complete")
     print("="*70)
     print(f"Training time: {end_time - start_time:.2f}s")
-    print(f"Total checkpoints: {len(metrics)}")
     
 
     # Compute average evaluation rewards per checkpoint
@@ -148,10 +147,10 @@ if __name__ == "__main__":
     #     print(f"\n✓ Model saved to '{model_path}'")
 
     # Save metrics to file
-    metrics_path = os.path.join(output_dir, "metrics.pkl")
-    with open(metrics_path, "wb") as f:
-        pickle.dump(metrics, f)
-    print(f"✓ Metrics saved to '{metrics_path}'")
+    # metrics_path = os.path.join(output_dir, "metrics.pkl")
+    # with open(metrics_path, "wb") as f:
+    #     pickle.dump(metrics, f)
+    # print(f"✓ Metrics saved to '{metrics_path}'")
     
     # Save evaluation rewards
     rewards_path = os.path.join(output_dir, "evaluation_rewards.npy")

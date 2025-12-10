@@ -6,7 +6,7 @@ from bordax.algorithms.base import Algorithm
 from bordax.training.evaluation import Evaluator
 from bordax.types import PRNGKey
 
-from typing import Optional
+from typing import Any, Callable, Optional, Tuple
 import functools
 
 from tqdm import tqdm
@@ -79,61 +79,52 @@ class Trainer:
                         print(f"  Warmup: {i+1}/{self.config.warmup_steps}, Buffer size: {len(self.replay_buffer)}")
                 print(f"Buffer filled with {len(self.replay_buffer)} transitions\n")
 
-    def _run_training_step(self, key: PRNGKey):
-        pass
+    def _run_epoch(
+        self,
+        key: PRNGKey,
+        train_step_fn: Optional[Callable],
+    ) -> Tuple[PRNGKey, Any]:
+        """Run a single training epoch."""
+        if train_step_fn is not None:
+            # JIT-compiled path (on-policy, jittable env)
+            (
+                key,
+                self.training_state,
+                _,
+                self.last_obs,
+                self.last_env_state,
+            ), metrics = train_step_fn(
+                key,
+                self.training_state,
+                None,
+                self.last_obs,
+                self.last_env_state,
+            )
+        else:
+            # Non-JIT path (off-policy or non-jittable env)
+            (
+                key,
+                self.training_state,
+                self.replay_buffer,
+                self.last_obs,
+                self.last_env_state,
+            ), metrics = self.algo.train_step(
+                self.env,
+                self.agent,
+                key,
+                self.training_state,
+                self.replay_buffer,
+                self.last_obs,
+                self.last_env_state,
+            )
+        return key, metrics
 
     def _run_checkpoint(self, training_key: PRNGKey, evaluate_key: PRNGKey, ckpt: int, train_step_fn, epoch_rollouts):
         metrics_accum = None
         metric_updates = 0
         # On-policy with jittable environment
-        if self.env.is_jittable and self.replay_buffer is None:
-            assert train_step_fn is not None
-            for epoch in range(self.config.epochs_per_checkpoint):
-                (
-                    training_key,
-                    self.training_state,
-                    _,
-                    self.last_obs,
-                    self.last_env_state,
-                ), metrics = train_step_fn(
-                    training_key,
-                    self.training_state,
-                    None,
-                    self.last_obs,
-                    self.last_env_state,
-                )
-                if metrics is not None:
-                    metrics_accum = (
-                        metrics
-                        if metrics_accum is None
-                        else jax.tree_util.tree_map(lambda a, b: a + b, metrics_accum, metrics)
-                    )
-                    metric_updates += 1
-        # Off-policy or non-jittable environment
-        else:
-            for epoch in range(self.config.epochs_per_checkpoint):
-                (
-                    training_key,
-                    self.training_state,
-                    self.replay_buffer,
-                    self.last_obs,
-                    self.last_env_state,
-                ), metrics = self.algo.train_step(
-                    self.env,
-                    self.agent,
-                    training_key,
-                    self.training_state,
-                    self.replay_buffer,
-                    self.last_obs,
-                    self.last_env_state,
-                )
-                if metrics is not None:
-                    metrics_accum = (
-                        metrics
-                        if metrics_accum is None
-                        else jax.tree_util.tree_map(lambda a, b: a + b, metrics_accum, metrics)
-                    )
-                    metric_updates += 1
+        for epoch in range(self.config.epochs_per_checkpoint):
+            training_key, metrics = self._run_epoch(training_key, train_step_fn)
 
         if self.config.enable_evaluation:
             eval_result = self.evaluator.evaluate(evaluate_key, self.training_state.params)
@@ -145,11 +136,11 @@ class Trainer:
                 }
             )
         
-        if metrics_accum is not None:
-            averaged_metrics = jax.tree_util.tree_map(
-                lambda x: x / metric_updates, metrics_accum
-            )
-            averaged_metrics = jax.device_get(averaged_metrics)
+        # if metrics_accum is not None:
+        #     averaged_metrics = jax.tree_util.tree_map(
+        #         lambda x: x / metric_updates, metrics_accum
+        #     )
+        #     averaged_metrics = jax.device_get(averaged_metrics)
             # all_metrics.append({k: float(v) for k, v in averaged_metrics.items()})
 
         # model_parameters.append(self.training_state.params)
@@ -182,7 +173,6 @@ class Trainer:
             train_step = jax.jit(train_step_fixed)
 
         epoch_rollouts = []
-        all_metrics = []
 
         for ckpt in range(self.config.num_checkpoints):
             training_key, ckpt_training_key = jax.random.split(training_key)
@@ -193,4 +183,4 @@ class Trainer:
             if pbar is not None:
                 pbar.update(1)
 
-        return all_metrics, epoch_rollouts
+        return epoch_rollouts
