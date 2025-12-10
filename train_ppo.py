@@ -109,7 +109,7 @@ if __name__ == "__main__":
     print(" Starting Training")
     print("="*70)
     start_time = time.time()
-    metrics, data, model_parameters = trainer.run(key)
+    metrics, data = trainer.run(key)
     end_time = time.time()
     
     print(f"\n{'='*70}")
@@ -135,18 +135,17 @@ if __name__ == "__main__":
     # Find the checkpoint with highest average evaluation reward
     average_evaluation_rewards = np.array(eval_rewards)
     best_checkpoint_index = np.argmax(average_evaluation_rewards)
-    best_parameters = model_parameters[best_checkpoint_index]
     
     print(f"\nBest checkpoint: {best_checkpoint_index}")
     print(f"Best average reward: {average_evaluation_rewards[best_checkpoint_index]:.2f}")
 
-    # Save the parameters
-    if training_config.save_model:
-        export = {"agent": agent, "params": best_parameters}
-        model_path = os.path.join(output_dir, "best_model.pkl")
-        with open(model_path, "wb") as f:
-            pickle.dump(export, f)
-        print(f"\n✓ Model saved to '{model_path}'")
+    # # Save the parameters
+    # if training_config.save_model:
+    #     export = {"agent": agent, "params": best_parameters}
+    #     model_path = os.path.join(output_dir, "best_model.pkl")
+    #     with open(model_path, "wb") as f:
+    #         pickle.dump(export, f)
+    #     print(f"\n✓ Model saved to '{model_path}'")
 
     # Save metrics to file
     metrics_path = os.path.join(output_dir, "metrics.pkl")
