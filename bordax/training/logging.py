@@ -30,8 +30,7 @@ class Logger():
             os.makedirs(self.log_dir)
 
         self._metrics_log_path = os.path.join(self.log_dir, "metrics.csv") if self.log_dir else None
-        self._metrics_log_file_exists = os.path.exists(self._metrics_log_path) if self._metrics_log_path else False # this is to check if we need to write headers
-
+        self._metrics_log_file_exists = os.path.exists(self._metrics_log_path) if self._metrics_log_path else False
         self._evaluation_log_path = os.path.join(self.log_dir, "evaluation.csv") if self.log_dir else None
         self._evaluation_log_file_exists = os.path.exists(self._evaluation_log_path) if self._evaluation_log_path else False
 
@@ -44,38 +43,27 @@ class Logger():
             )
 
 
+    def _log_dict(self, entry: dict, step: int, csv_path: Optional[str], file_exists_attr: str):
+        if csv_path:
+            write_header = not getattr(self, file_exists_attr)
+            with open(csv_path, "a") as f:
+                if write_header:
+                    f.write(",".join(entry.keys()) + "\n")
+                    setattr(self, file_exists_attr, True)
+                f.write(",".join(str(v) for v in entry.values()) + "\n")
+        if self.use_wandb:
+            wandb.log(entry, step=step)  # type: ignore
+
     def log_metrics(self, metrics: dict, step: int):
         if metrics is None:
             return
-        
         entry = {"step": step}
         entry.update(metrics)
-
-        if self._metrics_log_path:
-            write_header = not self._metrics_log_file_exists
-            with open(self._metrics_log_path, "a") as f:
-                if write_header:
-                    f.write(",".join(entry.keys()) + "\n")
-                    self._log_file_exists = True
-                f.write(",".join(str(v) for v in entry.values()) + "\n")
-
-        if self.use_wandb:
-            wandb.log(entry, step=step)  # type: ignore
+        self._log_dict(entry, step, self._metrics_log_path, "_metrics_log_file_exists")
 
     def log_evaluation(self, evaluation: dict, step: int):
         if evaluation is None:
             return
-        
         entry = {"step": step}
         entry.update(evaluation)
-
-        if self._evaluation_log_path:
-            write_header = not self._evaluation_log_file_exists
-            with open(self._evaluation_log_path, "a") as f:
-                if write_header:
-                    f.write(",".join(entry.keys()) + "\n")
-                    self._evaluation_log_file_exists = True
-                f.write(",".join(str(v) for v in entry.values()) + "\n")
-
-        if self.use_wandb:
-            wandb.log(entry, step=step)  # type: ignore
+        self._log_dict(entry, step, self._evaluation_log_path, "_evaluation_log_file_exists")
