@@ -48,8 +48,10 @@ class SurrogateLoss(LossFn):
         surrogate_loss2 = jnp.clip(ratio, 1 - eps_clip, 1 + eps_clip) * adv
 
         loss = -jnp.mean(jnp.minimum(surrogate_loss1, surrogate_loss2))
+        approx_kl = jnp.mean(old_logp - logp)
         metrics = {
             "loss": loss,
+            "approx_kl": approx_kl,
         }
         return loss, metrics
 
