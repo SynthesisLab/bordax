@@ -64,7 +64,7 @@ class Trainer:
         
         # Initialize replay buffer for off-policy algorithms
         if self.config.replay_buffer_capacity is not None:
-            from bordax.buffer import ReplayBuffer
+            from bordax.data.buffer import ReplayBuffer
             obs_shape = self.env.obs_space().shape
             action_shape = self.env.action_space().shape
             self.replay_buffer = ReplayBuffer(

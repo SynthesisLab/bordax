@@ -7,23 +7,23 @@ import functools
 
 from bordax.agents.base import Agent
 from bordax.environments.utils import EnvAdapter, EnvState, EnvObs
-from bordax.batchbuilders import BatchBuilder
+from bordax.data.batchbuilders import BatchBuilder
 from bordax.types import PRNGKey, TrainingState
-from bordax.collectors import Collector
+from bordax.data.collectors import Collector
 from bordax.training.updaters import Updater
 
-from bordax.batchbuilders import UniformReplayBatch
+from bordax.data.batchbuilders import UniformReplayBatch
 from bordax.training.updaters import DQNUpdater
 from bordax.algorithms.losses import DQNLoss
 
 from bordax.algorithms.losses import PPOLoss
-from bordax.batchbuilders import (
+from bordax.data.batchbuilders import (
     FullBufferBatch,
     MiniBatch,
     NormalizeAdvantagesTargets,
     ComposedBatchBuilder,
 )
-from bordax.collectors import (
+from bordax.data.collectors import (
     OnPolicyCollector,
     EpsGreedyCollector,
     StochasticOffPolicyCollector,
