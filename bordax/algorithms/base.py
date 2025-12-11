@@ -136,6 +136,7 @@ def ppo_algo(
                 ent_coef_schedule=ent_schedule,
             ),
             num_sgd_steps=num_sgd_steps,
+            grad_clip=grad_clip,
         ),
     )
 
