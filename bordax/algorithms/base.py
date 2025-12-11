@@ -107,12 +107,18 @@ def ppo_algo(
     num_minibatches=16,
     num_sgd_steps=1,
     num_envs: int = 1,
+    grad_clip: float = 0.5,
     **kwargs
 ):
 
     assert (
         rollout_length % num_minibatches == 0
     ), "Rollout length must be divisible by number of minibatches"
+
+    schedule = optax.constant_schedule(lr)
+    adam = optax.inject_hyperparams(optax.adam)(learning_rate=schedule)
+    optimizier = optax.chain(optax.clip_by_global_norm(grad_clip), adam)    
+
     return Algorithm(
         OnPolicyCollector(rollout_length, gamma, _lambda),
         ComposedBatchBuilder(
@@ -123,7 +129,7 @@ def ppo_algo(
             ),
         ),
         SGDUpdate(
-            optimizer=optax.chain(optax.clip_by_global_norm(0.5), optax.adam(lr)),
+            optimizer=optimizier,
             loss_fn=PPOLoss(
                 clip_schedule=clip_schedule,
                 vf_coef_schedule=vf_schedule,

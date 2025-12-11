@@ -19,10 +19,11 @@ class Updater(ABC):
     def __call__(self, agent, buffer, ts: TrainingState, key: PRNGKey) -> Tuple[TrainingState, Any]: ...
 
 class SGDUpdate(Updater):
-    def __init__(self, optimizer, loss_fn, num_sgd_steps: int = 1):
+    def __init__(self, optimizer, loss_fn, num_sgd_steps: int = 1, grad_clip: float | None = None):
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.num_sgd_steps = num_sgd_steps
+        self.grad_clip = grad_clip
 
     def init(self, params):
         return TrainingState(optimizer_state=self.optimizer.init(params), params=params, step=jnp.array(0))
@@ -39,10 +40,28 @@ class SGDUpdate(Updater):
                 optimizer_state, params, key = carry
                 key, mini_loss_key = jax.random.split(key)
                 (loss, metrics), grads = vg_loss(params, agent, mini, mini_loss_key, ts.step)
-                params_update, new_optimizer_state = self.optimizer.update(
-                    grads, optimizer_state
-                )
+                grad_norm = optax.global_norm(grads) # this is pre-clipping norm
+
+                if self.grad_clip is not None:
+                    # estimate the clipping
+                    clipped_grad_norm = jnp.minimum(grad_norm, self.grad_clip)
+                else:
+                    clipped_grad_norm = grad_norm
+
+                params_update, new_optimizer_state = self.optimizer.update(grads, optimizer_state)
                 new_params = optax.apply_updates(params, params_update)
+                update_norm = optax.global_norm(params_update) # norm of the update applied (takes learning rate into account)
+
+                metrics = dict(metrics)
+                metrics["grad_norm"] = grad_norm
+                metrics["clipped_grad_norm"] = clipped_grad_norm
+                metrics["update_norm"] = update_norm
+                if isinstance(new_optimizer_state, tuple):
+                    metrics["lr"] = new_optimizer_state[1].hyperparams['learning_rate']
+                    metrics["counter"] = new_optimizer_state[1].count
+                else:
+                    metrics["lr"] = new_optimizer_state.hyperparams['learning_rate']
+                    metrics["counter"] = new_optimizer_state.count
 
                 return (new_optimizer_state, new_params, key), metrics
 
