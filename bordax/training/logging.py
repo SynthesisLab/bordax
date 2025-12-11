@@ -30,7 +30,10 @@ class Logger():
             os.makedirs(self.log_dir)
 
         self._metrics_log_path = os.path.join(self.log_dir, "metrics.csv") if self.log_dir else None
-        self._log_file_exists = os.path.exists(self._metrics_log_path) if self._metrics_log_path else False # this is to check if we need to write headers
+        self._metrics_log_file_exists = os.path.exists(self._metrics_log_path) if self._metrics_log_path else False # this is to check if we need to write headers
+
+        self._evaluation_log_path = os.path.join(self.log_dir, "evaluation.csv") if self.log_dir else None
+        self._evaluation_log_file_exists = os.path.exists(self._evaluation_log_path) if self._evaluation_log_path else False
 
         self.use_wandb = config.use_wandb and WANDB_AVAILABLE
         if self.use_wandb:
@@ -49,11 +52,29 @@ class Logger():
         entry.update(metrics)
 
         if self._metrics_log_path:
-            write_header = not self._log_file_exists
+            write_header = not self._metrics_log_file_exists
             with open(self._metrics_log_path, "a") as f:
                 if write_header:
                     f.write(",".join(entry.keys()) + "\n")
                     self._log_file_exists = True
+                f.write(",".join(str(v) for v in entry.values()) + "\n")
+
+        if self.use_wandb:
+            wandb.log(entry, step=step)  # type: ignore
+
+    def log_evaluation(self, evaluation: dict, step: int):
+        if evaluation is None:
+            return
+        
+        entry = {"step": step}
+        entry.update(evaluation)
+
+        if self._evaluation_log_path:
+            write_header = not self._evaluation_log_file_exists
+            with open(self._evaluation_log_path, "a") as f:
+                if write_header:
+                    f.write(",".join(entry.keys()) + "\n")
+                    self._evaluation_log_file_exists = True
                 f.write(",".join(str(v) for v in entry.values()) + "\n")
 
         if self.use_wandb:

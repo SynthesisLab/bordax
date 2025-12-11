@@ -114,7 +114,7 @@ if __name__ == "__main__":
     print(" Starting Training")
     print("="*70)
     start_time = time.time()
-    data = trainer.run(key)
+    jax.block_until_ready(trainer.run(key))
     end_time = time.time()
     
     print(f"\n{'='*70}")
@@ -124,24 +124,24 @@ if __name__ == "__main__":
     
 
     # Compute average evaluation rewards per checkpoint
-    eval_rewards = []
-    eval_timesteps = []
-    steps_per_checkpoint = training_config.epochs_per_checkpoint * ROLLOUT_TOTAL
-    for idx, rollout in enumerate(data, start=1):
-        if not rollout:
-            continue
-        returns = np.asarray(rollout["return"], dtype=np.float32)
-        if returns.size == 0:
-            continue
-        eval_rewards.append(float(np.mean(returns)))
-        eval_timesteps.append(idx * steps_per_checkpoint)
+    # eval_rewards = []
+    # eval_timesteps = []
+    # steps_per_checkpoint = training_config.epochs_per_checkpoint * ROLLOUT_TOTAL
+    # for idx, rollout in enumerate(data, start=1):
+    #     if not rollout:
+    #         continue
+    #     returns = np.asarray(rollout["return"], dtype=np.float32)
+    #     if returns.size == 0:
+    #         continue
+    #     eval_rewards.append(float(np.mean(returns)))
+    #     eval_timesteps.append(idx * steps_per_checkpoint)
 
     # Find the checkpoint with highest average evaluation reward
-    average_evaluation_rewards = np.array(eval_rewards)
-    best_checkpoint_index = np.argmax(average_evaluation_rewards)
+    # average_evaluation_rewards = np.array(eval_rewards)
+    # best_checkpoint_index = np.argmax(average_evaluation_rewards)
     
-    print(f"\nBest checkpoint: {best_checkpoint_index}")
-    print(f"Best average reward: {average_evaluation_rewards[best_checkpoint_index]:.2f}")
+    # print(f"\nBest checkpoint: {best_checkpoint_index}")
+    # print(f"Best average reward: {average_evaluation_rewards[best_checkpoint_index]:.2f}")
 
     # # Save the parameters
     # if training_config.save_model:
@@ -158,31 +158,31 @@ if __name__ == "__main__":
     # print(f"✓ Metrics saved to '{metrics_path}'")
     
     # Save evaluation rewards
-    rewards_path = os.path.join(output_dir, "evaluation_rewards.npy")
-    np.save(rewards_path, average_evaluation_rewards)
-    print(f"✓ Evaluation rewards saved to '{rewards_path}'")
+    # rewards_path = os.path.join(output_dir, "evaluation_rewards.npy")
+    # np.save(rewards_path, average_evaluation_rewards)
+    # print(f"✓ Evaluation rewards saved to '{rewards_path}'")
 
-    print("\n✅ PPO training completed successfully!")
+    # print("\n✅ PPO training completed successfully!")
     
-    # Plot training metrics
-    import seaborn as sns
-    sns.set_theme(style="darkgrid")
+    # # Plot training metrics
+    # import seaborn as sns
+    # sns.set_theme(style="darkgrid")
     
-    # Plot 1: Evaluation rewards
-    plt.figure(figsize=(8, 6))
-    plt.plot(eval_timesteps, average_evaluation_rewards, marker='o', markersize=3)
-    plt.axhline(y=average_evaluation_rewards.max(), color='r', linestyle='--', 
-                label=f'Best: {average_evaluation_rewards.max():.1f}')
-    plt.xlabel('Checkpoint')
-    plt.ylabel('Average Reward')
-    plt.title('Evaluation Performance')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    eval_plot_path = os.path.join(output_dir, "evaluation_rewards.png")
-    plt.savefig(eval_plot_path, dpi=150, bbox_inches='tight')
-    plt.close()
+    # # Plot 1: Evaluation rewards
+    # plt.figure(figsize=(8, 6))
+    # plt.plot(eval_timesteps, average_evaluation_rewards, marker='o', markersize=3)
+    # plt.axhline(y=average_evaluation_rewards.max(), color='r', linestyle='--', 
+    #             label=f'Best: {average_evaluation_rewards.max():.1f}')
+    # plt.xlabel('Checkpoint')
+    # plt.ylabel('Average Reward')
+    # plt.title('Evaluation Performance')
+    # plt.legend()
+    # plt.grid(True)
+    # plt.tight_layout()
+    # eval_plot_path = os.path.join(output_dir, "evaluation_rewards.png")
+    # plt.savefig(eval_plot_path, dpi=150, bbox_inches='tight')
+    # plt.close()
     
     
-    print(f"\n✓ Plots saved to '{output_dir}/':")
-    print(f"  - {os.path.basename(eval_plot_path)}")
+    # print(f"\n✓ Plots saved to '{output_dir}/':")
+    # print(f"  - {os.path.basename(eval_plot_path)}")

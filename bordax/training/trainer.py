@@ -143,12 +143,27 @@ class Trainer:
         if self.config.enable_evaluation:
             eval_result = self.evaluator.evaluate(evaluate_key, self.training_state.params)
             eval_result = jax.tree_util.tree_map(np.asarray, eval_result)
-            epoch_rollouts.append(
-                {
-                    "return": eval_result["return"].astype(np.float32).tolist(),
-                    "length": eval_result["length"].astype(np.int32).tolist(),
+
+            eval_returns = eval_result["return"]
+            eval_lengths = eval_result["length"]
+            done_info = eval_result.get("done_info", None)
+            avg_return = float(np.mean(eval_returns))
+            avg_length = float(np.mean(eval_lengths))
+            if done_info is not None: # average additional info if available
+                avg_done_info = {k: float(np.mean([info[k] for info in done_info])) for k in done_info[0]}
+            else:
+                avg_done_info = {}
+
+            if self.logs_enabled:
+                entry = {
+                    "eval/avg_return": avg_return,
+                    "eval/avg_length": avg_length,
                 }
-            )
+                entry.update({f"eval/done_info/{k}": v for k, v in avg_done_info.items()})
+                self.logger.log_evaluation(
+                    entry,
+                    step=ckpt,
+                )
         
         # if metrics_accum is not None:
         #     averaged_metrics = jax.tree_util.tree_map(
