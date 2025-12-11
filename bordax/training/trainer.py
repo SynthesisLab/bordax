@@ -4,6 +4,7 @@ from bordax.agents.base import Agent
 from bordax.environments.utils import EnvAdapter
 from bordax.algorithms.base import Algorithm
 from bordax.training.evaluation import Evaluator
+from bordax.training.logging import Logger, LoggerConfig
 from bordax.types import PRNGKey
 
 from typing import Any, Callable, Optional, Tuple
@@ -19,8 +20,8 @@ class TrainerConfig:
     num_checkpoints: int
     epochs_per_checkpoint: int
     evaluation_episodes: int
-    debug: bool
-    save_model: bool
+    logger_config: Optional[LoggerConfig] = None
+    debug: bool = False
     # Off-policy specific config
     replay_buffer_capacity: Optional[int] = None  # If None, on-policy algorithm
     warmup_steps: Optional[int] = None  # Steps to collect before training
@@ -44,6 +45,12 @@ class Trainer:
         self.config = config
         self.replay_buffer = None  # For off-policy algorithms
         self.evaluator = Evaluator(eval_env, agent, config)
+        if config.logger_config:
+            self.logs_enabled = True
+            self.logger_config = config.logger_config
+            self.logger = Logger(self.logger_config)
+        else:
+            self.logs_enabled = False
 
     def init(self, key: PRNGKey):
         key, env_key, init_key = jax.random.split(key, 3)
@@ -120,11 +127,18 @@ class Trainer:
         return key, metrics
 
     def _run_checkpoint(self, training_key: PRNGKey, evaluate_key: PRNGKey, ckpt: int, train_step_fn, epoch_rollouts):
-        metrics_accum = None
-        metric_updates = 0
+
         # On-policy with jittable environment
         for epoch in range(self.config.epochs_per_checkpoint):
             training_key, metrics = self._run_epoch(training_key, train_step_fn)
+
+            if self.logs_enabled:
+                # Log training metrics
+                self.logger.log_metrics(
+                    {f"train/{k}": float(v) for k, v in metrics.items()},
+                    step=ckpt * self.config.epochs_per_checkpoint + epoch,
+                )
+                
 
         if self.config.enable_evaluation:
             eval_result = self.evaluator.evaluate(evaluate_key, self.training_state.params)

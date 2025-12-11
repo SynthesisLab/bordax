@@ -1,3 +1,4 @@
+from bordax.training.logging import LoggerConfig
 from bordax.training.trainer import Trainer, TrainerConfig
 from bordax.algorithms.utils import make_algo
 from bordax.environments.utils import make_env
@@ -77,13 +78,18 @@ if __name__ == "__main__":
     print(f"  - Num minibatches: {algo_config['num_minibatches']}")
     print(f"  - SGD epochs: {algo_config['num_sgd_steps']}")
 
+    logger_config = LoggerConfig(
+        log_dir=output_dir,
+        use_wandb=False,
+    )
+
     # Training configuration
     training_config = TrainerConfig(
         num_checkpoints=50,
         epochs_per_checkpoint=1,
         evaluation_episodes=10,
         debug=True,
-        save_model=True,
+        logger_config=logger_config,
     )
     
     print(f"\n✓ Training Configuration:")
@@ -92,7 +98,6 @@ if __name__ == "__main__":
     print(f"  - Total rollouts: {training_config.num_checkpoints * training_config.epochs_per_checkpoint}")
     print(f"  - Total timesteps: {training_config.num_checkpoints * training_config.epochs_per_checkpoint * algo_config['rollout_length']}")
     print(f"  - Evaluation episodes: {training_config.evaluation_episodes}")
-    print(f"  - Save model: {training_config.save_model}")
 
     # Initialize the trainer
     trainer = Trainer(env, eval_env, agent, algorithm, training_config)
