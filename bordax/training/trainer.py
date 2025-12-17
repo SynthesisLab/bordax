@@ -5,6 +5,7 @@ from bordax.environments.utils import EnvAdapter
 from bordax.algorithms.base import Algorithm
 from bordax.training.evaluation import Evaluator
 from bordax.training.logging import Logger, LoggerConfig
+from bordax.training.checkpointing import Checkpointer
 from bordax.types import PRNGKey
 
 from typing import Any, Callable, Optional, Tuple
@@ -21,6 +22,8 @@ class TrainerConfig:
     epochs_per_checkpoint: int
     evaluation_episodes: int
     logger_config: Optional[LoggerConfig] = None
+    chekpointer_config: Optional[Any] = None
+    restore_checkpoint: Optional[int] = None  # Epoch number to restore from
     debug: bool = False
     # Off-policy specific config
     replay_buffer_capacity: Optional[int] = None  # If None, on-policy algorithm
@@ -51,6 +54,12 @@ class Trainer:
             self.logger = Logger(self.logger_config)
         else:
             self.logs_enabled = False
+        if config.chekpointer_config:
+            self.checkpoints_enabled = True
+            self.checkpointer_config = config.chekpointer_config
+            self.checkpointer = Checkpointer(self.checkpointer_config)
+        else:
+            self.checkpoints_enabled = False
 
     def init(self, key: PRNGKey):
         key, env_key, init_key = jax.random.split(key, 3)
@@ -58,6 +67,10 @@ class Trainer:
         self.training_state = self.algo.init_training_state(
             self.agent, init_key, self.last_obs, self.env
         )
+
+        if self.config.restore_checkpoint:
+            restored_state = self.checkpointer.load(self.training_state, self.config.restore_checkpoint)
+            self.training_state = restored_state
 
         # Evaluation environment must be single-environment (num_envs=1)
         assert self.eval_env.num_envs == 1, f"eval_env must have num_envs=1, got {self.eval_env.num_envs}"
@@ -165,18 +178,12 @@ class Trainer:
                     step=ckpt,
                 )
         
-        # if metrics_accum is not None:
-        #     averaged_metrics = jax.tree_util.tree_map(
-        #         lambda x: x / metric_updates, metrics_accum
-        #     )
-        #     averaged_metrics = jax.device_get(averaged_metrics)
-            # all_metrics.append({k: float(v) for k, v in averaged_metrics.items()})
-
-        # model_parameters.append(self.training_state.params)
 
     def run(self, key: PRNGKey):
         if self.config.debug:
-            pbar = tqdm(total=self.config.num_checkpoints)
+            pbar = tqdm(
+                initial=0 + (0 if self.config.restore_checkpoint is None else self.config.restore_checkpoint),
+                total=self.config.num_checkpoints + (0 if self.config.restore_checkpoint is None else self.config.restore_checkpoint))
         else:
             pbar = None
 
@@ -206,8 +213,10 @@ class Trainer:
         for ckpt in range(self.config.num_checkpoints):
             training_key, ckpt_training_key = jax.random.split(training_key)
             evaluate_key, ckpt_evaluate_key = jax.random.split(evaluate_key)
-            self._run_checkpoint(ckpt_training_key, ckpt_evaluate_key, ckpt, train_step, epoch_rollouts)
-            
+            current_epoch = ckpt + (self.config.restore_checkpoint or 0)
+            self._run_checkpoint(ckpt_training_key, ckpt_evaluate_key, current_epoch, train_step, epoch_rollouts)
+            if self.checkpoints_enabled:
+                self.checkpointer.save(self.training_state, current_epoch+1)
 
             if pbar is not None:
                 pbar.update(1)

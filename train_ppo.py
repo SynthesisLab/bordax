@@ -1,4 +1,5 @@
 from bordax.training.logging import LoggerConfig
+from bordax.training.checkpointing import CheckpointerConfig
 from bordax.training.trainer import Trainer, TrainerConfig
 from bordax.algorithms.utils import make_algo
 from bordax.environments.utils import make_env
@@ -11,15 +12,53 @@ import numpy as np
 import pickle
 import os
 from datetime import datetime
+import argparse
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(description="Train PPO agent on a Gymnax environment.")
+
+    parser.add_argument(
+        "--restore-last",
+        action="store_true",
+        help="Restore from the last checkpoint if available.",
+    )
+
+    return parser.parse_args()
 
 if __name__ == "__main__":
+
+    args = parse_args()
+
     print("=" * 70)
     print(" PPO - CartPole-v1")
     print("=" * 70)
     
     # Create output directory for this run
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = f"runs/ppo_{timestamp}"
+    # get absolute path
+    root = os.path.dirname(os.path.abspath(__file__))
+    if args.restore_last:
+        # find the most recent run directory
+        runs_dir = os.path.join(root, "runs")
+        all_runs = [d for d in os.listdir(runs_dir) if os.path.isdir(os.path.join(runs_dir, d))]
+        if not all_runs:
+            raise ValueError("No runs found to restore from.")
+        latest_run = max(all_runs)
+        output_dir = os.path.join(runs_dir, latest_run)
+        print(f"\n✓ Restoring from the latest run directory: {output_dir}")
+
+        # find the latest checkpoint number
+        ckpt_dir = os.path.join(output_dir, "checkpoints")
+        all_ckpts = [int(d) for d in os.listdir(ckpt_dir)]
+        if not all_ckpts:
+            raise ValueError("No checkpoints found to restore from.")
+        checkpoint_to_restore = max(all_ckpts)
+        print(f"✓ Restoring from checkpoint number: {checkpoint_to_restore}")
+    else:
+        checkpoint_to_restore = None
+        output_dir = os.path.join(root, f"runs/ppo_{timestamp}")
+
     os.makedirs(output_dir, exist_ok=True)
     print(f"\n✓ Output directory: {output_dir}")
     
@@ -83,6 +122,11 @@ if __name__ == "__main__":
         use_wandb=False,
     )
 
+    checkpointer_config = CheckpointerConfig(
+        save_path=os.path.join(output_dir, "checkpoints"),
+        interval=10,
+    )
+
     # Training configuration
     training_config = TrainerConfig(
         num_checkpoints=50,
@@ -90,6 +134,8 @@ if __name__ == "__main__":
         evaluation_episodes=10,
         debug=True,
         logger_config=logger_config,
+        chekpointer_config=checkpointer_config,
+        restore_checkpoint=checkpoint_to_restore if args.restore_last else None,  
     )
     
     print(f"\n✓ Training Configuration:")
@@ -121,68 +167,3 @@ if __name__ == "__main__":
     print(" Training Complete")
     print("="*70)
     print(f"Training time: {end_time - start_time:.2f}s")
-    
-
-    # Compute average evaluation rewards per checkpoint
-    # eval_rewards = []
-    # eval_timesteps = []
-    # steps_per_checkpoint = training_config.epochs_per_checkpoint * ROLLOUT_TOTAL
-    # for idx, rollout in enumerate(data, start=1):
-    #     if not rollout:
-    #         continue
-    #     returns = np.asarray(rollout["return"], dtype=np.float32)
-    #     if returns.size == 0:
-    #         continue
-    #     eval_rewards.append(float(np.mean(returns)))
-    #     eval_timesteps.append(idx * steps_per_checkpoint)
-
-    # Find the checkpoint with highest average evaluation reward
-    # average_evaluation_rewards = np.array(eval_rewards)
-    # best_checkpoint_index = np.argmax(average_evaluation_rewards)
-    
-    # print(f"\nBest checkpoint: {best_checkpoint_index}")
-    # print(f"Best average reward: {average_evaluation_rewards[best_checkpoint_index]:.2f}")
-
-    # # Save the parameters
-    # if training_config.save_model:
-    #     export = {"agent": agent, "params": best_parameters}
-    #     model_path = os.path.join(output_dir, "best_model.pkl")
-    #     with open(model_path, "wb") as f:
-    #         pickle.dump(export, f)
-    #     print(f"\n✓ Model saved to '{model_path}'")
-
-    # Save metrics to file
-    # metrics_path = os.path.join(output_dir, "metrics.pkl")
-    # with open(metrics_path, "wb") as f:
-    #     pickle.dump(metrics, f)
-    # print(f"✓ Metrics saved to '{metrics_path}'")
-    
-    # Save evaluation rewards
-    # rewards_path = os.path.join(output_dir, "evaluation_rewards.npy")
-    # np.save(rewards_path, average_evaluation_rewards)
-    # print(f"✓ Evaluation rewards saved to '{rewards_path}'")
-
-    # print("\n✅ PPO training completed successfully!")
-    
-    # # Plot training metrics
-    # import seaborn as sns
-    # sns.set_theme(style="darkgrid")
-    
-    # # Plot 1: Evaluation rewards
-    # plt.figure(figsize=(8, 6))
-    # plt.plot(eval_timesteps, average_evaluation_rewards, marker='o', markersize=3)
-    # plt.axhline(y=average_evaluation_rewards.max(), color='r', linestyle='--', 
-    #             label=f'Best: {average_evaluation_rewards.max():.1f}')
-    # plt.xlabel('Checkpoint')
-    # plt.ylabel('Average Reward')
-    # plt.title('Evaluation Performance')
-    # plt.legend()
-    # plt.grid(True)
-    # plt.tight_layout()
-    # eval_plot_path = os.path.join(output_dir, "evaluation_rewards.png")
-    # plt.savefig(eval_plot_path, dpi=150, bbox_inches='tight')
-    # plt.close()
-    
-    
-    # print(f"\n✓ Plots saved to '{output_dir}/':")
-    # print(f"  - {os.path.basename(eval_plot_path)}")
