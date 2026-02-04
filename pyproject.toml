@@ -1,0 +1,77 @@
+[project]
+name = "bordax"
+version = "0.1.0"
+description = "High-performance JAX-based framework for Programmatic Reinforcement Learning"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Roman Kniazev", email = "roman@knzv.me"}
+]
+
+dependencies = [
+    "jax>=0.8.0",
+    "flax>=0.12.0",
+    "optax>=0.2.6",
+    "distrax>=0.1.7",
+    "chex>=0.1.91",
+    "gymnax>=0.0.9",
+    "gymnasium>=1.2.0",
+    "numpy>=2.4.0",
+    "orbax-checkpoint>=0.11.32",
+    "tqdm>=4.67.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "black>=26.0.0",
+    "isort>=7.0.0",
+    "mypy>=1.19.0",
+]
+wandb = [
+    "wandb>=0.24.0",
+]
+plotting = [
+    "matplotlib>=3.10.0",
+    "seaborn>=0.13.0",
+]
+all = [
+    "bordax[dev,wandb,plotting]",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.29,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "bordax"
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests (fast, isolated component tests)",
+    "integration: Integration tests (multiple components working together)",
+    "e2e: End-to-end tests (full training runs)",
+    "slow: Slow tests (>5s execution time)",
+]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--disable-warnings",
+    "-v",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
