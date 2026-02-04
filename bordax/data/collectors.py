@@ -1,4 +1,4 @@
-from bordax.agents.base import Agent, BlankAgent, MixtureAgent
+from bordax.agents.base import Agent
 from bordax.environments.utils import EnvAdapter, EnvState, EnvObs
 from bordax.types import PRNGKey, Params, TrainingState
 
@@ -243,11 +243,3 @@ class EpsGreedyCollector(Collector):
             replay_buffer.add(transition)
 
         return (obs, env_state), replay_buffer
-
-
-class StochasticOffPolicyCollector(Collector):
-    pass
-
-
-class DeterministicOffPolicyCollector(Collector):
-    pass

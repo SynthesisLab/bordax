@@ -22,7 +22,7 @@ class TrainerConfig:
     epochs_per_checkpoint: int
     evaluation_episodes: int
     logger_config: Optional[LoggerConfig] = None
-    chekpointer_config: Optional[Any] = None
+    checkpointer_config: Optional[Any] = None
     restore_checkpoint: Optional[int] = None  # Epoch number to restore from
     debug: bool = False
     # Off-policy specific config
@@ -54,9 +54,9 @@ class Trainer:
             self.logger = Logger(self.logger_config)
         else:
             self.logs_enabled = False
-        if config.chekpointer_config:
+        if config.checkpointer_config:
             self.checkpoints_enabled = True
-            self.checkpointer_config = config.chekpointer_config
+            self.checkpointer_config = config.checkpointer_config
             self.checkpointer = Checkpointer(self.checkpointer_config)
         else:
             self.checkpoints_enabled = False
