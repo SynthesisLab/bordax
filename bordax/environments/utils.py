@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 import functools
 
 import gymnax
-import brouillax
 import gymnasium
 
 from typing import TYPE_CHECKING, Any, Tuple, Mapping, Dict
@@ -60,8 +59,6 @@ class EnvGymnaxAdapter(EnvAdapter):
         prefix, name = env_name.split("/", 1)
         if prefix == "gymnax":
             self.env, self.env_params = gymnax.make(name, **self.config["init_config"])
-        elif prefix == "brouillax":
-            self.env, self.env_params = brouillax.make(name, **self.config["init_config"])
         else:
             raise ValueError(f"Unknown environment prefix: {prefix}")
 
@@ -124,7 +121,7 @@ def make_env(env_name: str, env_config, num_envs: int = 1) -> EnvAdapter:
 
     if len(env_name.split("/")) > 1:
         # the prefix indicates what type environment to use
-        if env_name.split("/")[0] in ["gymnax", "brouillax"]:
+        if env_name.split("/")[0] == "gymnax":
             return EnvGymnaxAdapter(env_name, env_config, num_envs)
         elif env_name.split("/")[0] == "gymnasium":
             return EnvGymnasiumAdapter(env_name, env_config, num_envs)
