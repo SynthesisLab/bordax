@@ -26,8 +26,6 @@ from bordax.data.batchbuilders import (
 from bordax.data.collectors import (
     OnPolicyCollector,
     EpsGreedyCollector,
-    StochasticOffPolicyCollector,
-    DeterministicOffPolicyCollector,
 )
 from bordax.training.updaters import SGDUpdate
 

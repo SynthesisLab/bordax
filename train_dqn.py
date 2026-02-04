@@ -1,13 +1,12 @@
 from bordax.training.trainer import Trainer, TrainerConfig
+from bordax.training.logging import LoggerConfig
+from bordax.training.checkpointing import CheckpointerConfig
 from bordax.algorithms.utils import make_algo
 from bordax.environments.utils import make_env
 from bordax.agents.utils import make_agent
 
 import jax
 import time
-import matplotlib.pyplot as plt
-import numpy as np
-import pickle
 from datetime import datetime
 import os
 
@@ -18,7 +17,8 @@ if __name__ == "__main__":
 
     # Create output directory for this run
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = f"runs/dqn_{timestamp}"
+    root = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(root, f"runs/dqn_{timestamp}")
     os.makedirs(output_dir, exist_ok=True)
     print(f"\n✓ Output directory: {output_dir}")
     
@@ -66,6 +66,18 @@ if __name__ == "__main__":
     print(f"  - Gamma: {algo_config['gamma']}")
     print(f"  - Target update frequency: {algo_config['target_update_freq']}")
 
+    # Logging configuration
+    logger_config = LoggerConfig(
+        log_dir=output_dir,
+        use_wandb=False,
+    )
+
+    # Checkpointing configuration
+    checkpointer_config = CheckpointerConfig(
+        save_path=os.path.join(output_dir, "checkpoints"),
+        interval=10,
+    )
+
     # Training configuration
     # For DQN: each epoch collects 'rollout_length' steps and performs 1 update
     # num_checkpoints controls how many evaluations we do
@@ -74,7 +86,8 @@ if __name__ == "__main__":
         epochs_per_checkpoint=250,   # Updates between evaluations (250 updates = 250 steps collected)
         evaluation_episodes=10,      # Episodes per evaluation
         debug=True,
-        save_model=False,
+        logger_config=logger_config,
+        checkpointer_config=checkpointer_config,
         # Off-policy specific
         replay_buffer_capacity=10000,
         warmup_steps=1000,           # Fill buffer before training starts
@@ -103,78 +116,15 @@ if __name__ == "__main__":
     print(" Starting Training")
     print("="*70)
     start_time = time.time()
-    metrics, data, model_parameters = trainer.run(key)
+    jax.block_until_ready(trainer.run(key))
     end_time = time.time()
-    
+
     print(f"\n{'='*70}")
     print(" Training Complete")
     print("="*70)
     print(f"Training time: {end_time - start_time:.2f}s")
-    print(f"Total updates: {len(metrics)}")
-    
-    if metrics:
-        print(f"Initial loss: {float(metrics[0]['dqn_loss']):.4f}")
-        print(f"Final loss: {float(metrics[-1]['dqn_loss']):.4f}")
-        print(f"Final Q-value: {float(metrics[-1]['mean_q_value']):.4f}")
-
-    # Compute average evaluation rewards per checkpoint
-    average_evaluation_rewards = []
-    for rollout in data:
-        first_done_indices = np.argmax(rollout["done"], axis=1)
-        cum_sum = np.cumsum(rollout["reward"], axis=1)
-        first_rewards = cum_sum[
-            np.arange(cum_sum.shape[0]),
-            first_done_indices,
-        ]
-        average_evaluation_rewards.append(first_rewards.mean())
-
-    # Find the checkpoint with highest average evaluation reward
-    average_evaluation_rewards = np.array(average_evaluation_rewards)
-    best_checkpoint_index = np.argmax(average_evaluation_rewards)
-    best_parameters = model_parameters[best_checkpoint_index]
-    
-    print(f"\nBest checkpoint: {best_checkpoint_index}")
-    print(f"Best average reward: {average_evaluation_rewards[best_checkpoint_index]:.2f}")
-
-    # Save the parameters
-    if training_config.save_model:
-        export = {"agent": agent, "params": best_parameters}
-        model_path = os.path.join(output_dir, "best_model.pkl")
-        with open(model_path, "wb") as f:
-            pickle.dump(export, f)
-        print(f"\n✓ Model saved to '{model_path}'")
-
-    # Save metrics to file
-    metrics_path = os.path.join(output_dir, "metrics.pkl")
-    with open(metrics_path, "wb") as f:
-        pickle.dump(metrics, f)
-    print(f"✓ Metrics saved to '{metrics_path}'")
-    
-    # Save evaluation rewards
-    rewards_path = os.path.join(output_dir, "evaluation_rewards.npy")
-    np.save(rewards_path, average_evaluation_rewards)
-    print(f"✓ Evaluation rewards saved to '{rewards_path}'")
 
     print("\n✅ DQN training completed successfully!")
-    
-    # Save training plots
-
-    # Optional: Plot training metrics
-    import seaborn as sns
-    sns.set_theme(style="darkgrid")
-    
-    # Evaluation rewards over checkpoints
-    plt.plot(average_evaluation_rewards)
-    plt.axhline(y=average_evaluation_rewards.max(), color='r', linestyle='--', 
-                       label=f'Best: {average_evaluation_rewards.max():.1f}')
-    plt.xlabel('Checkpoint')
-    plt.ylabel('Average Reward')
-    plt.title('Evaluation Performance')
-    plt.legend()
-    plt.grid(True)
-        
-    plt.tight_layout()
-    reward_plot_path = os.path.join(output_dir, "evaluation_rewards.png")
-    plt.savefig(reward_plot_path, dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"\n✓ Training plots saved to '{reward_plot_path}'")
+    print(f"✓ Metrics logged to: {output_dir}/metrics.csv")
+    print(f"✓ Evaluation logged to: {output_dir}/evaluation.csv")
+    print(f"✓ Checkpoints saved to: {output_dir}/checkpoints/")

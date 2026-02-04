@@ -221,10 +221,73 @@ class EpsGreedyCollector(Collector):
         
         return (final_obs, final_state), transitions
     
-    def _non_jittable_collect(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, 
-                              env_state: EnvState, agent: Agent, params: Params):
-        
-        raise NotImplementedError("Non-jittable environments are not supported yet.")
+    def _non_jittable_collect(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs,
+                              env_state: EnvState, agent: Agent, params: Params,
+                              epsilon: float):
+        """Collect transitions using epsilon-greedy policy for non-jittable environments."""
+        env_spec = dict(
+            obs_shape=env.obs_space().shape,
+            action_shape=env.action_space().shape
+        )
+
+        is_discrete = hasattr(env.action_space(), 'n')
+        action_dtype = np.int32 if is_discrete else np.float32
+
+        buffer = {
+            "obs": np.zeros(
+                (self.rollout_length, env.num_envs) + env_spec["obs_shape"],
+                dtype=np.float32,
+            ),
+            "action": np.zeros(
+                (self.rollout_length, env.num_envs) + env_spec["action_shape"],
+                dtype=action_dtype,
+            ),
+            "reward": np.zeros(
+                (self.rollout_length, env.num_envs),
+                dtype=np.float32,
+            ),
+            "next_obs": np.zeros(
+                (self.rollout_length, env.num_envs) + env_spec["obs_shape"],
+                dtype=np.float32,
+            ),
+            "done": np.zeros(
+                (self.rollout_length, env.num_envs),
+                dtype=np.bool_,
+            ),
+        }
+
+        for i in range(self.rollout_length):
+            key, explore_key, act_key, env_key = jax.random.split(key, 4)
+
+            buffer["obs"][i] = np.asarray(obs)
+
+            do_explore = float(jax.random.uniform(explore_key)) < epsilon
+
+            if do_explore:
+                if is_discrete:
+                    action = np.random.randint(0, env.action_space().n, size=(env.num_envs,))
+                else:
+                    action = np.random.uniform(
+                        low=env.action_space().low,
+                        high=env.action_space().high,
+                        size=(env.num_envs,) + env_spec["action_shape"]
+                    ).astype(np.float32)
+            else:
+                action, _ = agent.action(params, obs, act_key)
+                action = np.asarray(action)
+
+            n_obs, n_env_state, reward, done, _ = env.step(env_key, env_state, action)
+
+            buffer["action"][i] = action
+            buffer["reward"][i] = np.asarray(reward)
+            buffer["next_obs"][i] = np.asarray(n_obs)
+            buffer["done"][i] = np.asarray(done)
+
+            obs = n_obs
+            env_state = n_env_state
+
+        transitions = jax.tree_util.tree_map(jnp.asarray, buffer)
+        return (obs, env_state), transitions
 
     def __call__(self, key: PRNGKey, env: EnvAdapter, obs: EnvObs, env_state: EnvState, 
                  replay_buffer: Any, agent: Agent, ts: TrainingState) -> Tuple[Tuple[Any, EnvState], Any]:
@@ -234,7 +297,9 @@ class EpsGreedyCollector(Collector):
         if env.is_jittable:
             (obs, env_state), transitions = self._jit_collect(key, env, obs, env_state, agent, ts.params, epsilon)
         else:
-            raise NotImplementedError("Non-jittable environments are not supported yet.")
+            (obs, env_state), transitions = self._non_jittable_collect(
+                key, env, obs, env_state, agent, ts.params, epsilon
+            )
         
         transitions_np = jax.tree_util.tree_map(np.asarray, transitions)
 
