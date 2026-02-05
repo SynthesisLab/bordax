@@ -177,6 +177,11 @@ class Trainer:
                     entry,
                     step=ckpt,
                 )
+
+            # Append eval results to epoch_rollouts for return
+            epoch_rollouts.append(eval_result)
+        else:
+            epoch_rollouts.append({})
         
 
     def run(self, key: PRNGKey):

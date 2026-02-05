@@ -4,9 +4,12 @@
 
 **A High-Performance JAX Framework for Programmatic Reinforcement Learning**
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![JAX](https://img.shields.io/badge/JAX-0.4.38-orange.svg)](https://github.com/google/jax)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![JAX](https://img.shields.io/badge/JAX-0.8.0+-orange.svg)](https://github.com/google/jax)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-48%20passed-brightgreen.svg)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-77%25-yellowgreen.svg)](#testing)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 </div>
 
@@ -14,96 +17,133 @@
 
 ## Overview
 
-BordAX is a research-focused framework for **Programmatic Reinforcement Learning (PRL)** that combines the speed of JAX with support for structured, interpretable policies.
+BordAX is a research-focused framework for **Programmatic Reinforcement Learning (PRL)** that combines the speed of JAX with support for structured, interpretable policies including neural networks, boolean functions, and decision trees.
 
 ### Key Features
 
-- 🚀 **High Performance**: Fully JIT-compiled training pipelines leveraging JAX's XLA compilation
-- 🧩 **Modular Architecture**: Clean separation between agents, algorithms, environments, and training logic
-- 🎯 **Multiple Policy Types**: Support for MLPs, boolean functions (HyperBool), and decision trees (DTSemNet)
-- 🔄 **Flexible Algorithms**: Built-in PPO (on-policy) and DQN (off-policy) with easy extensibility
-- 🔧 **Extensible**: Simple APIs for adding new agents, algorithms, and environments
+- **High Performance** — Fully JIT-compiled training pipelines leveraging JAX's XLA compilation
+- **Modular Architecture** — Clean separation between agents, algorithms, environments, and training
+- **Multiple Policy Types** — MLPs, boolean functions (HyperBool), and decision trees (DTSemNet)
+- **Flexible Algorithms** — Built-in PPO (on-policy) and DQN (off-policy) with easy extensibility
+- **Environment Agnostic** — Supports both Gymnax (JIT-compiled) and Gymnasium environments
+- **Production Ready** — Checkpointing, logging, WandB integration, and comprehensive tests
+
+---
+
+## Performance
+
+BordAX achieves high performance through:
+
+- **Full JIT compilation** for jittable environments (Gymnax)
+- **Vectorized environments** via `jax.vmap`
+- **Efficient loops** using `jax.lax.scan`
+- **Pure functional design** compatible with XLA optimization
+
+### JIT Compilation Strategy
+
+| Environment | Algorithm | JIT Scope |
+|-------------|-----------|-----------|
+| Gymnax | On-policy | Entire `train_step` |
+| Gymnax | Off-policy | `update` only |
+| Gymnasium | Any | `update` only |
+
+### Benchmark: BordAX vs Stable-Baselines3
+
+PPO on CartPole-v1 with identical hyperparameters (5 seeds, 51k timesteps):
+
+| Framework | Training Time | Throughput | Speedup |
+|-----------|--------------|------------|---------|
+| **BordAX + Gymnax** (Full JIT) | 4.26s ± 0.12s | **12,027 steps/s** | **3.2x** |
+| **BordAX + Gymnasium** | 6.38s ± 0.27s | 8,021 steps/s | 2.2x |
+| Stable-Baselines3 | 13.79s ± 0.55s | 3,714 steps/s | 1.0x |
+
+[![Benchmark Plot](https://github.com/SynthesisLab/bordax/blob/main/imgs/comparison.png?raw=true)]
+
+With Gymnax (fully JIT-compiled), BordAX is **3.2x faster** than Stable-Baselines3.
+Even with Gymnasium (Python environment), BordAX is **2.2x faster**.
+
+Run the benchmark yourself:
+```bash
+pip install stable-baselines3
+python compare_sb3.py
+```
+
 
 ---
 
 ## Installation
-
-### Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/SynthesisLab/bordax.git
 cd bordax
 
-# Create and activate virtual environment (recommended)
-python -m venv .venv
-source .venv/bin/activate
+# Install with uv (recommended)
+uv sync
 
-# Install dependencies
-pip install -r requirements.txt
+# Or with pip
+pip install -e .
+
+# With optional dependencies (WandB, visualization)
+pip install -e ".[all]"
 ```
 
-### Quick Test
-
-Verify your installation:
+### Verify Installation
 
 ```bash
-python -c "from bordax.trainer import Trainer; print('✓ BordAX installed successfully')"
+python -c "from bordax.training.trainer import Trainer; print('BordAX installed successfully')"
 ```
 
 ---
 
 ## Quick Start
 
-### Training PPO on CartPole
+### Train PPO on CartPole
 
 ```bash
 python train_ppo.py
 ```
 
-This will:
-- Train an agent with MLP policy using PPO on CartPole-v1
-- Save results to `runs/ppo_YYYYMMDD_HHMMSS/`
-- Generate training plots (rewards, policy loss, value loss, entropy)
-
-Expected results:
 - Solves CartPole-v1 (reward = 500) in ~100k steps
 - Training time: ~6 seconds on CPU
 
-![PPO Training Rewards](https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_ppo.png?raw=true)
+<p align="center">
+  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_ppo.png?raw=true" alt="PPO Training" width="600"/>
+</p>
 
-### Training DQN on CartPole
+### Train DQN on CartPole
 
 ```bash
 python train_dqn.py
 ```
 
-Expected results:
-- Solves CartPole-v1 (reward = 500) in ~50k steps
+- Solves CartPole-v1 in ~50k steps
 - Training time: ~30 seconds on CPU
 
-![DQN Training Rewards](https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_dqn.png?raw=true)
+<p align="center">
+  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_dqn.png?raw=true" alt="DQN Training" width="600"/>
+</p>
 
 ### Custom Training Script
 
 ```python
-from bordax.trainer import Trainer, TrainerConfig
+import jax
+from bordax.training.trainer import Trainer, TrainerConfig
 from bordax.algorithms.utils import make_algo
 from bordax.environments.utils import make_env
 from bordax.agents.utils import make_agent
-import jax
 
-# Setup environment
-env = make_env("gymnax/CartPole-v1", {}, num_envs=1)
+# Setup environments
+env = make_env("gymnax/CartPole-v1", {}, num_envs=4)
 eval_env = make_env("gymnax/CartPole-v1", {}, num_envs=1)
 
-# Create agent
+# Create agent with MLP policy and value networks
 agent = make_agent("mlp/mlp", env, {
     "policy_layers": [64, 64],
     "value_layers": [64, 64],
 })
 
-# Configure algorithm
+# Configure PPO algorithm
 algorithm = make_algo("ppo", {
     "lr": 3e-4,
     "rollout_length": 2048,
@@ -122,24 +162,22 @@ config = TrainerConfig(
     epochs_per_checkpoint=1,
     evaluation_episodes=32,
     debug=True,
-    save_model=True,
 )
 
 trainer = Trainer(env, eval_env, agent, algorithm, config)
 
-# Initialize and train
+# Train
 key = jax.random.PRNGKey(0)
 init_key, train_key = jax.random.split(key)
 trainer.init(init_key)
-
-metrics, eval_data, model_params = trainer.run(train_key)
+eval_data = trainer.run(train_key)
 ```
 
 ---
 
 ## Architecture
 
-BordAX uses a modular pipeline architecture:
+BordAX uses a modular pipeline architecture that cleanly separates concerns:
 
 ```
 Trainer
@@ -153,44 +191,19 @@ Trainer
 
 | Component | Purpose | Examples |
 |-----------|---------|----------|
-| **Agent** | Defines policy and value networks | `MLPPolicyValue`, `DQNAgent` |
+| **Agent** | Defines policy and value networks | `MLPPolicyValue`, `BooleanPolicyValue`, `DTPolicy`, `DQNAgent` |
 | **Algorithm** | Bundles training pipeline components | `ppo_algo()`, `dqn_algo()` |
-| **Collector** | Generates transitions via environment interaction | `OnPolicyCollector`, `EpsGreedyCollector` |
-| **BatchBuilder** | Transforms data into training batches | `MiniBatch`, `UniformReplayBatch` |
-| **Updater** | Updates parameters using loss functions | `SGDUpdate`, `DQNUpdater` |
+| **Collector** | Generates transitions via env interaction | `OnPolicyCollector`, `EpsGreedyCollector` |
+| **BatchBuilder** | Transforms data into training batches | `FullBufferBatch`, `MiniBatch`, `UniformReplayBatch` |
+| **Updater** | Updates parameters using gradients | `SGDUpdate`, `DQNUpdater` |
 | **Trainer** | Orchestrates full training loop | `Trainer` |
 
 ### Supported Algorithms
 
-- **PPO**
-- **DQN**
----
-
-## Project Structure
-
-```
-bordax/
-├── bordax/                   # Main package
-│   ├── agents/               # Agent definitions
-│   │   ├── base.py           # Base classes and implementations
-│   │   ├── components.py     # Neural network modules
-│   │   └── utils.py          # Agent factory
-│   ├── algorithms/           # RL algorithms
-│   │   ├── base.py           # Algorithm implementations
-│   │   ├── losses.py         # Algorithm-specific losses
-│   │   └── utils.py          # Algorithm factory
-│   ├── environments/         # Environment adapters (Gymnax, Gymnasium)
-│   ├── batchbuilders.py      # Batch construction
-│   ├── buffer.py             # Replay buffer
-│   ├── collectors.py         # Data collection strategies
-│   ├── trainer.py            # Training pipeline orchestration
-│   ├── types.py              # Type definitions
-│   └── updaters.py           # Model parameter updates
-├── train_ppo.py              
-├── train_dqn.py              
-├── requirements.txt          
-└── README.md                 
-```
+| Algorithm | Type | Collector | Batch Strategy |
+|-----------|------|-----------|----------------|
+| **PPO** | On-policy | `OnPolicyCollector` | `FullBufferBatch` → `MiniBatch` |
+| **DQN** | Off-policy | `EpsGreedyCollector` | `UniformReplayBatch` |
 
 ---
 
@@ -208,7 +221,7 @@ agent = make_agent("mlp/mlp", env, {
 
 ### Programmatic Policies
 
-**HyperBool** (Boolean function-based):
+**HyperBool** — Boolean function-based policies (`boolean/mlp`):
 ```python
 agent = make_agent("boolean/mlp", env, {
     "n": 4,  # Number of boolean variables
@@ -216,12 +229,109 @@ agent = make_agent("boolean/mlp", env, {
 })
 ```
 
-**DTSemNet** (Decision trees):
+**DTSemNet** — Decision tree policies (`dt/mlp`):
 ```python
 agent = make_agent("dt/mlp", env, {
     "tree_depth": 4,
     "value_layers": [64, 64],
 })
+```
+
+### DQN Agent
+
+**Q-Network** (`dqn`):
+```python
+agent = make_agent("dqn", env, {
+    "layers": [64, 64],
+})
+```
+
+---
+
+## Project Structure
+
+```
+bordax/
+├── bordax/
+│   ├── agents/              # Agent implementations
+│   │   ├── base.py          # MLPPolicyValue, BooleanPolicyValue, DTPolicy, DQNAgent
+│   │   ├── components.py    # Neural modules (MLP, DTSemNet, BooleanFunction)
+│   │   └── utils.py         # make_agent() factory
+│   ├── algorithms/          # RL algorithms
+│   │   ├── base.py          # Algorithm class, ppo_algo(), dqn_algo()
+│   │   ├── losses.py        # PPOLoss, DQNLoss
+│   │   └── utils.py         # make_algo() factory
+│   ├── data/                # Data collection and batching
+│   │   ├── collectors.py    # OnPolicyCollector, EpsGreedyCollector
+│   │   ├── batchbuilders.py # Batch transformations
+│   │   └── buffer.py        # ReplayBuffer
+│   ├── environments/        # Environment adapters
+│   │   └── utils.py         # EnvAdapter, make_env()
+│   ├── training/            # Training infrastructure
+│   │   ├── trainer.py       # Main Trainer class
+│   │   ├── evaluation.py    # Evaluator
+│   │   ├── logging.py       # Logger with WandB support
+│   │   ├── checkpointing.py # Model checkpointing (Orbax)
+│   │   └── updaters.py      # SGDUpdate, DQNUpdater
+│   └── types.py             # Core type definitions
+├── tests/                   # Test suite (48 tests, 77% coverage)
+│   ├── unit/                # Fast component tests
+│   ├── integration/         # Pipeline tests
+│   └── slow/                # Learning verification tests
+├── train_ppo.py             # PPO training example
+├── train_dqn.py             # DQN training example
+└── compare_sb3.py           # Stable-Baselines3 benchmark
+```
+
+---
+
+## Testing
+
+BordAX has a comprehensive test suite with **48 tests** achieving **77% code coverage**.
+
+```bash
+# Run all tests (excluding slow)
+uv run pytest tests/ -m "not slow" -v
+
+# Run slow learning tests
+uv run pytest tests/ -m slow -v
+
+# Run with coverage
+uv run pytest tests/ --cov=bordax --cov-report=term-missing
+```
+
+### Test Categories
+
+| Category | Tests | Purpose |
+|----------|-------|---------|
+| **Unit** | 44 | Fast component tests |
+| **Integration** | 2 | Full pipeline verification |
+| **Slow** | 2 | Learning verification |
+
+
+---
+
+## Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| JAX | >=0.8.0 | Core computation |
+| Flax | >=0.12.0 | Neural networks |
+| Optax | >=0.2.6 | Optimizers |
+| Gymnax | >=0.0.9 | JAX environments |
+| Gymnasium | >=1.2.0 | Standard environments |
+| Distrax | >=0.1.7 | Distributions |
+| Orbax | >=0.11.32 | Checkpointing |
+
+Optional: WandB (experiment tracking), Matplotlib/Seaborn (visualization)
+
+---
+
+## Restoring from Checkpoints
+
+```bash
+# Restore last checkpoint and continue training
+python train_ppo.py --restore-last
 ```
 
 ---
@@ -236,10 +346,14 @@ BordAX is released under the [MIT License](LICENSE).
 
 BordAX builds on excellent work from the JAX ecosystem:
 
-- [JAX](https://github.com/google/jax): High-performance numerical computing
-- [Flax](https://github.com/google/flax): Neural network library
-- [Gymnax](https://github.com/RobertTLange/gymnax): JAX-compatible RL environments
-- [Optax](https://github.com/deepmind/optax): Gradient processing and optimization
-- [Distrax](https://github.com/deepmind/distrax): Probability distributions
+- [JAX](https://github.com/google/jax) — High-performance numerical computing
+- [Flax](https://github.com/google/flax) — Neural network library
+- [Gymnax](https://github.com/RobertTLange/gymnax) — JAX-compatible RL environments
+- [Optax](https://github.com/deepmind/optax) — Gradient processing and optimization
+- [Distrax](https://github.com/deepmind/distrax) — Probability distributions
 
+---
+
+<div align="center">
+<sub>Built with JAX for speed and interpretability</sub>
 </div>
