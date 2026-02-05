@@ -57,7 +57,9 @@ PPO on CartPole-v1 with identical hyperparameters (5 seeds, 51k timesteps):
 | **BordAX + Gymnasium** | 6.38s ± 0.27s | 8,021 steps/s | 2.2x |
 | Stable-Baselines3 | 13.79s ± 0.55s | 3,714 steps/s | 1.0x |
 
-[![Benchmark Plot](https://github.com/SynthesisLab/bordax/blob/main/imgs/comparison.png?raw=true)]
+<p align="center">
+  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/comparison.png?raw=true" alt="Benchmark Comparison" width="800"/>
+</p>
 
 With Gymnax (fully JIT-compiled), BordAX is **3.2x faster** than Stable-Baselines3.
 Even with Gymnasium (Python environment), BordAX is **2.2x faster**.
@@ -104,11 +106,12 @@ python -c "from bordax.training.trainer import Trainer; print('BordAX installed 
 python train_ppo.py
 ```
 
-- Solves CartPole-v1 (reward = 500) in ~100k steps
-- Training time: ~6 seconds on CPU
+- Solves CartPole-v1 (reward = 500) in ~400k steps
+- Training time: ~18 seconds on CPU
+- Throughput: ~23,000 steps/s
 
 <p align="center">
-  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_ppo.png?raw=true" alt="PPO Training" width="600"/>
+  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_ppo.png?raw=true" alt="PPO Training" width="700"/>
 </p>
 
 ### Train DQN on CartPole
@@ -118,10 +121,11 @@ python train_dqn.py
 ```
 
 - Solves CartPole-v1 in ~50k steps
-- Training time: ~30 seconds on CPU
+- Training time: ~36 seconds on CPU
+- Includes 1,000 step warmup phase
 
 <p align="center">
-  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_dqn.png?raw=true" alt="DQN Training" width="600"/>
+  <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/evaluation_rewards_dqn.png?raw=true" alt="DQN Training" width="700"/>
 </p>
 
 ### Custom Training Script
@@ -134,8 +138,8 @@ from bordax.environments.utils import make_env
 from bordax.agents.utils import make_agent
 
 # Setup environments
-env = make_env("gymnax/CartPole-v1", {}, num_envs=4)
-eval_env = make_env("gymnax/CartPole-v1", {}, num_envs=1)
+env = make_env("gymnax/CartPole-v1", {"init_config": {}, "reset_config": {}}, num_envs=4)
+eval_env = make_env("gymnax/CartPole-v1", {"init_config": {}, "reset_config": {}}, num_envs=1)
 
 # Create agent with MLP policy and value networks
 agent = make_agent("mlp/mlp", env, {
