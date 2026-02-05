@@ -32,6 +32,13 @@ def cartpole_single_env():
 
 
 @pytest.fixture
+def gymnasium_cartpole_env():
+    """Provide a non-jittable Gymnasium CartPole-v1 environment."""
+    env_config = {"init_config": {}, "reset_config": {}}
+    return make_env("gymnasium/CartPole-v1", env_config, num_envs=1)
+
+
+@pytest.fixture
 def sample_cartpole_obs():
     """Provide a sample CartPole observation."""
     # CartPole observation: [x, x_dot, theta, theta_dot]

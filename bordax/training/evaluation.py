@@ -106,8 +106,8 @@ class Evaluator:
                     run_key, env_state, np.asarray(action)
                 )
 
-                reward = float(np.asarray(reward))
-                done = bool(np.asarray(done))
+                reward = float(np.asarray(reward).squeeze())
+                done = bool(np.asarray(done).squeeze())
 
                 total_reward += reward
                 steps += 1
