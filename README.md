@@ -66,8 +66,8 @@ Even with Gymnasium (Python environment), BordAX is **2.2x faster**.
 
 Run the benchmark yourself:
 ```bash
-pip install stable-baselines3
-python compare_sb3.py
+uv sync --extra benchmark
+uv run python compare_sb3.py
 ```
 
 
