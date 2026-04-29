@@ -243,10 +243,10 @@ agent = make_agent("dt/mlp", env, {
 
 ### DQN Agent
 
-**Q-Network** (`dqn`):
+**Q-Network** (`dqn/mlp`):
 ```python
-agent = make_agent("dqn", env, {
-    "layers": [64, 64],
+agent = make_agent("dqn/mlp", env, {
+    "q_layers": [64, 64],
 })
 ```
 
