@@ -38,8 +38,13 @@ plotting = [
     "matplotlib>=3.10.0",
     "seaborn>=0.13.0",
 ]
+benchmark = [
+    "stable-baselines3>=2.8.0",
+    "matplotlib>=3.10.0",
+    "seaborn>=0.13.0",
+]
 all = [
-    "bordax[dev,wandb,plotting]",
+    "bordax[dev,wandb,plotting,benchmark]",
 ]
 
 [build-system]
