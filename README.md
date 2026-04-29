@@ -294,14 +294,17 @@ bordax/
 BordAX has a comprehensive test suite with **48 tests** achieving **77% code coverage**.
 
 ```bash
-# Run all tests (excluding slow)
-uv run pytest tests/ -m "not slow" -v
+# install test dependencies
+uv sync --extra dev
 
-# Run slow learning tests
-uv run pytest tests/ -m slow -v
+# run all tests (excluding slow)
+uv run python -m pytest tests/ -m "not slow" -v
 
-# Run with coverage
-uv run pytest tests/ --cov=bordax --cov-report=term-missing
+# run slow learning tests
+uv run python -m pytest tests/ -m slow -v
+
+# run with coverage
+uv run python -m pytest tests/ --cov=bordax --cov-report=term-missing
 ```
 
 ### Test Categories
