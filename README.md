@@ -225,17 +225,17 @@ agent = make_agent("mlp/mlp", env, {
 
 ### Programmatic Policies
 
-**HyperBool** — Boolean function-based policies (`boolean/mlp`):
+**HyperBool** — Boolean function-based policies (`mlp/bool`):
 ```python
-agent = make_agent("boolean/mlp", env, {
+agent = make_agent("mlp/bool", env, {
     "n": 4,  # Number of boolean variables
     "value_layers": [128, 64, 32],
 })
 ```
 
-**DTSemNet** — Decision tree policies (`dt/mlp`):
+**DTSemNet** — Decision tree policies (`mlp/dt`):
 ```python
-agent = make_agent("dt/mlp", env, {
+agent = make_agent("mlp/dt", env, {
     "tree_depth": 4,
     "value_layers": [64, 64],
 })
@@ -243,10 +243,10 @@ agent = make_agent("dt/mlp", env, {
 
 ### DQN Agent
 
-**Q-Network** (`dqn`):
+**Q-Network** (`dqn/mlp`):
 ```python
-agent = make_agent("dqn", env, {
-    "layers": [64, 64],
+agent = make_agent("dqn/mlp", env, {
+    "q_layers": [64, 64],
 })
 ```
 
