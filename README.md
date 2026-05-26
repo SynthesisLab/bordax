@@ -53,16 +53,18 @@ PPO on CartPole-v1 with identical hyperparameters (5 seeds, 51k timesteps):
 
 | Framework | Training Time | Throughput | Speedup |
 |-----------|--------------|------------|---------|
-| **BordAX + Gymnax** (Full JIT) | 4.26s ± 0.12s | **12,027 steps/s** | **3.2x** |
-| **BordAX + Gymnasium** | 6.38s ± 0.27s | 8,021 steps/s | 2.2x |
-| Stable-Baselines3 | 13.79s ± 0.55s | 3,714 steps/s | 1.0x |
+| **BordAX + Gymnax** (Full JIT) | 3.73s ± 0.06s | **13,709 steps/s** | **2.8x** |
+| **BordAX + Gymnasium** | 5.41s ± 0.11s | 9,468 steps/s | 1.9x |
+| Stable-Baselines3 | 10.40s ± 0.05s | 4,923 steps/s | 1.0x |
 
 <p align="center">
   <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/comparison.png?raw=true" alt="Benchmark Comparison" width="800"/>
 </p>
 
-With Gymnax (fully JIT-compiled), BordAX is **3.2x faster** than Stable-Baselines3.
-Even with Gymnasium (Python environment), BordAX is **2.2x faster**.
+With Gymnax (fully JIT-compiled), BordAX is **2.8x faster** than Stable-Baselines3.
+Even with Gymnasium (Python environment), BordAX is **1.9x faster**.
+
+*Measured on Apple M3 Pro (2023) with JAX 0.9.0, Stable-Baselines3 2.8.0, PyTorch 2.11.0.*
 
 Run the benchmark yourself:
 ```bash
