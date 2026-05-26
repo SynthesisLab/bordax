@@ -7,8 +7,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![JAX](https://img.shields.io/badge/JAX-0.8.0+-orange.svg)](https://github.com/google/jax)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-48%20passed-brightgreen.svg)](#testing)
-[![Coverage](https://img.shields.io/badge/coverage-77%25-yellowgreen.svg)](#testing)
+[![CI](https://github.com/SynthesisLab/bordax/actions/workflows/ci.yml/badge.svg)](https://github.com/SynthesisLab/bordax/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/SynthesisLab/bordax/branch/main/graph/badge.svg)](https://codecov.io/gh/SynthesisLab/bordax)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 </div>

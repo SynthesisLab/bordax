@@ -126,7 +126,7 @@ def make_env(env_name: str, env_config, num_envs: int = 1) -> EnvAdapter:
         elif env_name.split("/")[0] == "gymnasium":
             return EnvGymnasiumAdapter(env_name, env_config, num_envs)
         else:
-            raise ValueError(f"Unknown environment prefix: {env_name.split("/")[0]}")
+            raise ValueError(f"Unknown environment prefix: {env_name.split('/')[0]}")
     else:
         raise ValueError(
             "Environment name must include a prefix (e.g., 'gymnax/CartPole-v1')."
