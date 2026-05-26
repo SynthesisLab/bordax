@@ -244,33 +244,3 @@ def dqn_algo(
             target_update_freq=target_update_freq,
         ),
     )
-
-
-# a2c_algo = Algorithm(
-#     OnPolicyCollector(roullout_length=5, gamma=0.99),
-#     FullBufferBatch(),
-#     A2CLoss(vf_coef=0.5, ent_coef=0.01),
-#     AdamUpdater(3e-4),
-# )
-
-
-# ddqn_algo = Algorithm(
-#     EpsGreedyCollector(epsilon=0.1, gamma=0.99),
-#     UniformReplayBatch(32),
-#     DoubleDQNLoss(n_step=1),
-#     TargetNetUpdater(AdamUpdater(1e-4), update_interval=1000),
-# )
-
-# sac_algo = Algorithm(
-#     StochasticOffPolicyCollector(temp=1.0, gamma=0.99),
-#     UniformReplayBatch(256),
-#     SACLoss(alpha_autotune=True, target_entropy=-1.0),
-#     SACUpdater(actor_lr=3e-4, critic_lr=3e-4, alpha_lr=3e-4, tau=0.005),
-# )
-
-# td3_algo = Algorithm(
-#     DeterministicOffPolicyCollector(noise_std=0.1, noise_clip=0.5),
-#     UniformReplayBatch(256),
-#     TD3Loss(target_noise=0.2, target_clip=0.5, policy_delay=2),
-#     PolyakUpdater(actor_lr=3e-4, critic_lr=3e-4, tau=0.005),
-# )
