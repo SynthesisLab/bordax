@@ -1,0 +1,3 @@
+# bordax.types
+
+::: bordax.types

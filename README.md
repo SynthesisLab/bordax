@@ -10,6 +10,7 @@
 [![CI](https://github.com/SynthesisLab/bordax/actions/workflows/ci.yml/badge.svg)](https://github.com/SynthesisLab/bordax/actions/workflows/ci.yml)
 [![Coverage](https://codecov.io/gh/SynthesisLab/bordax/branch/main/graph/badge.svg)](https://codecov.io/gh/SynthesisLab/bordax)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://synthesislab.github.io/bordax)
 
 </div>
 

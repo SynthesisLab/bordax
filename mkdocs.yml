@@ -1,0 +1,38 @@
+site_name: BordAX
+site_description: A High-Performance JAX Framework for Programmatic Reinforcement Learning
+site_url: https://synthesislab.github.io/bordax
+repo_url: https://github.com/SynthesisLab/bordax
+repo_name: SynthesisLab/bordax
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            show_root_heading: true
+            docstring_style: google
+
+nav:
+  - Home: index.md
+  - API Reference:
+    - Overview: api/index.md
+    - Agents: api/agents.md
+    - Algorithms: api/algorithms.md
+    - Data: api/data.md
+    - Environments: api/environments.md
+    - Training: api/training.md
+    - Types: api/types.md
