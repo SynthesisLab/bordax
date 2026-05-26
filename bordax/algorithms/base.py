@@ -37,6 +37,14 @@ from bordax.training.updaters import SGDUpdate
 
 
 class Algorithm(NamedTuple):
+    """A training algorithm composed of a collector, batch builder, and updater.
+
+    Attributes:
+        collector: Generates transitions by interacting with the environment.
+        batch_builder: Transforms collected data into training batches.
+        updater: Applies gradient updates to the network parameters.
+    """
+
     collector: Collector
     batch_builder: BatchBuilder
     updater: Updater
@@ -44,7 +52,17 @@ class Algorithm(NamedTuple):
     def init_training_state(
         self, agent: Agent, key: PRNGKey, sample_obs: Any, env: EnvAdapter
     ) -> TrainingState:
+        """Initialise the training state for a given agent.
 
+        Args:
+            agent: The agent whose parameters are initialised.
+            key: JAX random key.
+            sample_obs: A sample observation used to infer network input shapes.
+            env: The training environment (used by some updaters).
+
+        Returns:
+            A ``TrainingState`` containing initial parameters and optimizer state.
+        """
         params = agent.init(key, sample_obs)
         return self.updater.init(params)
 
@@ -58,10 +76,31 @@ class Algorithm(NamedTuple):
         agent: Agent,
         ts: TrainingState,
     ):
+        """Collect experience from the environment.
+
+        Delegates to ``self.collector``. For on-policy algorithms the
+        returned buffer contains the freshly collected rollout; for
+        off-policy algorithms transitions are appended to the existing
+        replay buffer which is returned.
+
+        Returns:
+            Tuple of ``((obs, env_state), replay_buffer)``.
+        """
         return self.collector(key, env, obs, env_state, replay_buffer, agent, ts)
 
     @functools.partial(jax.jit, static_argnames=("self", "agent"))
     def update(self, agent: Agent, batch: Any, ts: TrainingState, key: PRNGKey):
+        """JIT-compiled parameter update step.
+
+        Args:
+            agent: Agent providing loss function access.
+            batch: Training batch produced by the batch builder.
+            ts: Current training state.
+            key: JAX random key.
+
+        Returns:
+            Tuple of ``(new_training_state, metrics_dict)``.
+        """
         return self.updater(
             agent,
             batch,
@@ -79,6 +118,14 @@ class Algorithm(NamedTuple):
         obs: EnvObs,
         env_state: EnvState,
     ):
+        """Run one full training iteration: collect → batch → update.
+
+        This method is JIT-compiled by the ``Trainer`` when the environment
+        is jittable and the algorithm is on-policy.
+
+        Returns:
+            Tuple of ``((key, ts, replay_buffer, obs, env_state), metrics)``.
+        """
         key, collect_key, batch_key, update_key = jax.random.split(key, 4)
 
         (obs, env_state), replay_buffer = self.collect(
@@ -108,6 +155,26 @@ def ppo_algo(
     grad_clip: float = 0.5,
     **kwargs
 ):
+    """Create a PPO algorithm.
+
+    Args:
+        rollout_length: Number of environment steps collected per epoch
+            per environment. Must be divisible by ``num_minibatches``.
+        gamma: Discount factor for returns.
+        _lambda: GAE lambda for advantage estimation.
+        lr: Adam learning rate.
+        clip_schedule: Callable ``(step) -> clip_ratio``. Defaults to
+            constant 0.2.
+        vf_schedule: Callable ``(step) -> vf_coef``. Defaults to 0.5.
+        ent_schedule: Callable ``(step) -> ent_coef``. Defaults to 0.01.
+        num_minibatches: Number of minibatches to split each rollout into.
+        num_sgd_steps: Number of SGD passes over the data per epoch.
+        num_envs: Number of parallel environments (used for batch reshaping).
+        grad_clip: Global gradient norm clipping threshold.
+
+    Returns:
+        A configured ``Algorithm`` for PPO.
+    """
 
     assert (
         rollout_length % num_minibatches == 0
@@ -149,18 +216,23 @@ def dqn_algo(
     **kwargs
 ):
     """Create a DQN algorithm.
-    
+
     Args:
-        epsilon: Exploration rate for epsilon-greedy policy
-        rollout_length: Number of steps to collect before updating (typically 1 for DQN)
-        batch_size: Number of transitions to sample from replay buffer
-        gamma: Discount factor
-        lr: Learning rate for the Q-network optimizer
-        target_update_freq: How often to update target network (in training steps)
-        applied_loss: Loss function to use (e.g., Huber loss or MSE)
-    
+        epsilon_schedule: Callable ``(step) -> epsilon`` controlling the
+            exploration rate over time.
+        rollout_length: Number of environment steps collected per update.
+            Typically 1 for standard DQN.
+        batch_size: Number of transitions sampled from the replay buffer
+            per update.
+        gamma: Discount factor for Bellman targets.
+        lr: Adam learning rate for the Q-network.
+        target_update_freq: Number of training steps between target network
+            hard updates.
+        applied_loss: Element-wise loss applied to TD errors (e.g.
+            ``optax.squared_error`` or ``optax.huber_loss``).
+
     Returns:
-        Algorithm instance for DQN
+        A configured ``Algorithm`` for DQN.
     """
     
     return Algorithm(
