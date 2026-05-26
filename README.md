@@ -347,6 +347,10 @@ python train_ppo.py --restore-last
 
 BordAX is released under the [MIT License](LICENSE).
 
+## Support
+
+For questions, bug reports, and feature requests, please [open a GitHub Issue](https://github.com/SynthesisLab/bordax/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ---
 
 ## Acknowledgments
