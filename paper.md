@@ -24,7 +24,7 @@ bibliography: paper.bib
 # Summary
 
 BordAX is a Python framework for reinforcement learning (RL) built on JAX [@jax2018github].
-It provides a modular, fully JIT-compilable training pipeline that supports multiple policy representations, including standard multilayer perceptrons (MLPs), differentiable decision trees (DTSemNet), and boolean function networks (HyperBool).
+It provides a modular, fully JIT-compilable training pipeline that supports multiple policy representations, including standard multilayer perceptrons (MLPs), differentiable decision trees (DTSemNet, [@panda2024vanilla]), and boolean function networks (HyperBool).
 BordAX currently implements Proximal Policy Optimization (PPO) [@schulman2017proximal] and Deep Q-Networks (DQN) [@mnih2015human], and is designed so that additional algorithms can be composed from interchangeable collector, batch-builder, and updater components.
 The framework supports both Gymnax [@gymnax2022github] environments, which enable full JIT compilation of the training loop via `jax.lax.scan`, and standard Gymnasium [@towers2026gymnasium] environments.
 On a CartPole-v1 benchmark with identical hyperparameters, BordAX with Gymnax achieves approximately 2.8 times higher throughput than Stable-Baselines3 [@raffin2021stable].
