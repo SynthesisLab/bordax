@@ -18,21 +18,54 @@ import numpy as np
 
 @dataclass
 class TrainerConfig:
+    """Configuration for the ``Trainer``.
+
+    Attributes:
+        num_checkpoints: Total number of training checkpoints (outer loop
+            iterations). Each checkpoint runs ``epochs_per_checkpoint``
+            epochs and optionally evaluates the policy.
+        epochs_per_checkpoint: Number of training epochs per checkpoint.
+        evaluation_episodes: Number of episodes to average over during
+            evaluation. Ignored if ``enable_evaluation=False``.
+        logger_config: Optional ``LoggerConfig`` for WandB logging.
+            If ``None``, logging is disabled.
+        checkpointer_config: Optional config for Orbax checkpointing.
+            If ``None``, checkpointing is disabled.
+        restore_checkpoint: If set, restores parameters from the given
+            checkpoint index before training starts.
+        debug: If ``True``, shows a tqdm progress bar during training.
+        replay_buffer_capacity: Capacity of the replay buffer for
+            off-policy algorithms. If ``None``, on-policy mode is assumed.
+        warmup_steps: Number of environment steps to collect into the
+            replay buffer before training begins (off-policy only).
+        enable_evaluation: If ``False``, skips policy evaluation at each
+            checkpoint (useful for warmup or ablation runs).
+    """
+
     num_checkpoints: int
     epochs_per_checkpoint: int
     evaluation_episodes: int
     logger_config: Optional[LoggerConfig] = None
     checkpointer_config: Optional[Any] = None
-    restore_checkpoint: Optional[int] = None  # Epoch number to restore from
+    restore_checkpoint: Optional[int] = None
     debug: bool = False
-    # Off-policy specific config
-    replay_buffer_capacity: Optional[int] = None  # If None, on-policy algorithm
-    warmup_steps: Optional[int] = None  # Steps to collect before training
-    # Evaluation config
-    enable_evaluation: bool = True  # If False, skip evaluation entirely
+    replay_buffer_capacity: Optional[int] = None
+    warmup_steps: Optional[int] = None
+    enable_evaluation: bool = True
 
-# A trainer takes an environment, an agent architecture, and an algorithm (and a config)
 class Trainer:
+    """Orchestrates the full training loop.
+
+    Combines an environment, agent, and algorithm into a training loop
+    that runs for a fixed number of checkpoints. Handles JIT compilation
+    strategy, optional evaluation, logging, and checkpointing.
+
+    For on-policy algorithms with a Gymnax environment the entire
+    ``train_step`` (collect + update) is JIT-compiled. For off-policy
+    algorithms or Gymnasium environments only the ``update`` step is
+    compiled.
+    """
+
     def __init__(
         self,
         env: EnvAdapter,
@@ -41,6 +74,14 @@ class Trainer:
         algo: Algorithm,
         config: TrainerConfig,
     ):
+        """
+        Args:
+            env: Vectorised training environment (``num_envs`` parallel instances).
+            eval_env: Single-instance evaluation environment (``num_envs=1``).
+            agent: Agent defining the policy and value networks.
+            algo: Algorithm providing collector, batch builder, and updater.
+            config: Training configuration.
+        """
         self.env = env
         self.eval_env = eval_env
         self.agent = agent
@@ -62,6 +103,15 @@ class Trainer:
             self.checkpoints_enabled = False
 
     def init(self, key: PRNGKey):
+        """Initialise the training state.
+
+        Resets the environment, initialises network parameters via
+        ``algo.init_training_state``, and optionally restores a checkpoint
+        or fills the replay buffer (off-policy).
+
+        Args:
+            key: JAX random key.
+        """
         key, env_key, init_key = jax.random.split(key, 3)
         self.last_obs, self.last_env_state = self.env.reset(env_key)
         self.training_state = self.algo.init_training_state(
@@ -185,6 +235,20 @@ class Trainer:
         
 
     def run(self, key: PRNGKey):
+        """Run the full training loop.
+
+        Iterates for ``config.num_checkpoints`` checkpoints, each running
+        ``config.epochs_per_checkpoint`` training epochs. Evaluates the
+        policy after each checkpoint if ``config.enable_evaluation=True``.
+
+        Args:
+            key: JAX random key.
+
+        Returns:
+            List of evaluation result dicts (one per checkpoint). Each dict
+            contains ``"return"`` and ``"length"`` arrays over episodes.
+            Empty dicts are appended when evaluation is disabled.
+        """
         if self.config.debug:
             pbar = tqdm(
                 initial=0 + (0 if self.config.restore_checkpoint is None else self.config.restore_checkpoint),

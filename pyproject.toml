@@ -38,6 +38,16 @@ plotting = [
     "matplotlib>=3.10.0",
     "seaborn>=0.13.0",
 ]
+benchmark = [
+    "stable-baselines3>=2.8.0",
+    "matplotlib>=3.10.0",
+    "seaborn>=0.13.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.25.0",
+]
 all = [
     "bordax[dev,wandb,plotting]",
 ]

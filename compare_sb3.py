@@ -39,6 +39,7 @@ from stable_baselines3 import PPO as SB3_PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.monitor import Monitor
 import torch.nn as nn
 
 
@@ -364,8 +365,8 @@ def train_sb3(seed: int):
     
     # Environment
     def make_env_fn():
-        return gym.make(ENV_NAME)
-    
+        return Monitor(gym.make(ENV_NAME))
+
     env = DummyVecEnv([make_env_fn for _ in range(NUM_ENVS)])
     eval_env = DummyVecEnv([make_env_fn])
     try:

@@ -12,6 +12,12 @@ import numpy as np
 
 
 class Collector(ABC):
+    """Abstract base class for data collectors.
+
+    A collector interacts with the environment for a fixed number of steps
+    and returns the resulting transitions, optionally storing them in a
+    replay buffer.
+    """
 
     @abstractmethod
     def __call__(
@@ -23,13 +29,46 @@ class Collector(ABC):
         replay_buffer: Any,
         agent: Agent,
         ts: TrainingState,
-    ) -> Tuple[Tuple[Any, EnvState], Any]: ...
+    ) -> Tuple[Tuple[Any, EnvState], Any]:
+        """Collect transitions from the environment.
+
+        Args:
+            key: JAX random key.
+            env: The environment to interact with.
+            obs: Current observation batch.
+            env_state: Current environment state batch.
+            replay_buffer: Existing replay buffer (on-policy: ignored;
+                off-policy: transitions are appended to it).
+            agent: Agent used to select actions.
+            ts: Current training state (provides parameters).
+
+        Returns:
+            Tuple of ``((next_obs, next_env_state), buffer)`` where
+            ``buffer`` is a trajectory dict (on-policy) or the updated
+            ``ReplayBuffer`` (off-policy).
+        """
+        ...
 
 
 class OnPolicyCollector(Collector):
+    """Collects full rollouts for on-policy algorithms (e.g. PPO).
+
+    For jittable environments the rollout is gathered inside
+    ``jax.lax.scan``, keeping everything on-device. For non-jittable
+    environments a Python loop is used instead, with a final device
+    transfer. GAE advantages and value targets are computed after
+    collection.
+    """
+
     def __init__(
         self, rollout_length: int = 1024, gamma: float = 0.99, _lambda: float = 0.99
     ):
+        """
+        Args:
+            rollout_length: Number of environment steps per rollout.
+            gamma: Discount factor used in GAE computation.
+            _lambda: GAE lambda parameter controlling the bias-variance tradeoff.
+        """
         self.rollout_length = rollout_length
         self.gamma = gamma
         self._lambda = _lambda
@@ -154,6 +193,22 @@ class OnPolicyCollector(Collector):
 
 @jax.jit
 def compute_gae(traj_batch, last_value, values, gamma, gae_lambda):
+    """Compute Generalised Advantage Estimates (GAE) for a rollout.
+
+    Args:
+        traj_batch: Dict of trajectory arrays with shape
+            ``(rollout_length, num_envs, ...)``.
+        last_value: Value estimate for the observation after the last step,
+            shape ``(num_envs,)``.
+        values: Value estimates for all observations in the rollout,
+            shape ``(rollout_length, num_envs)``.
+        gamma: Discount factor.
+        gae_lambda: GAE lambda parameter.
+
+    Returns:
+        Tuple of ``(advantages, targets)`` each with shape
+        ``(rollout_length, num_envs)``.
+    """
 
     def _get_advantages(gae_and_next_value, transition):
 
@@ -180,7 +235,21 @@ def compute_gae(traj_batch, last_value, values, gamma, gae_lambda):
 
 
 class EpsGreedyCollector(Collector):
+    """Collects transitions using an epsilon-greedy policy (for DQN).
+
+    At each step, with probability ``epsilon`` a random action is taken;
+    otherwise the greedy action from the Q-network is used. Collected
+    transitions are added to the replay buffer one at a time.
+    """
+
     def __init__(self, epsilon_schedule: Callable[[int], float], rollout_length: int = 1):
+        """
+        Args:
+            epsilon_schedule: Callable ``(step) -> epsilon`` that controls
+                exploration over training.
+            rollout_length: Number of environment steps collected per call.
+                Typically 1 for standard DQN.
+        """
         self.epsilon_schedule = epsilon_schedule
         self.rollout_length = rollout_length
 

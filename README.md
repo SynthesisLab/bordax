@@ -7,9 +7,10 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![JAX](https://img.shields.io/badge/JAX-0.8.0+-orange.svg)](https://github.com/google/jax)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-48%20passed-brightgreen.svg)](#testing)
-[![Coverage](https://img.shields.io/badge/coverage-77%25-yellowgreen.svg)](#testing)
+[![CI](https://github.com/SynthesisLab/bordax/actions/workflows/ci.yml/badge.svg)](https://github.com/SynthesisLab/bordax/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/SynthesisLab/bordax/branch/main/graph/badge.svg)](https://codecov.io/gh/SynthesisLab/bordax)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://synthesislab.github.io/bordax)
 
 </div>
 
@@ -53,21 +54,23 @@ PPO on CartPole-v1 with identical hyperparameters (5 seeds, 51k timesteps):
 
 | Framework | Training Time | Throughput | Speedup |
 |-----------|--------------|------------|---------|
-| **BordAX + Gymnax** (Full JIT) | 4.26s ± 0.12s | **12,027 steps/s** | **3.2x** |
-| **BordAX + Gymnasium** | 6.38s ± 0.27s | 8,021 steps/s | 2.2x |
-| Stable-Baselines3 | 13.79s ± 0.55s | 3,714 steps/s | 1.0x |
+| **BordAX + Gymnax** (Full JIT) | 3.73s ± 0.06s | **13,709 steps/s** | **2.8x** |
+| **BordAX + Gymnasium** | 5.41s ± 0.11s | 9,468 steps/s | 1.9x |
+| Stable-Baselines3 | 10.40s ± 0.05s | 4,923 steps/s | 1.0x |
 
 <p align="center">
   <img src="https://github.com/SynthesisLab/bordax/blob/main/imgs/comparison.png?raw=true" alt="Benchmark Comparison" width="800"/>
 </p>
 
-With Gymnax (fully JIT-compiled), BordAX is **3.2x faster** than Stable-Baselines3.
-Even with Gymnasium (Python environment), BordAX is **2.2x faster**.
+With Gymnax (fully JIT-compiled), BordAX is **2.8x faster** than Stable-Baselines3.
+Even with Gymnasium (Python environment), BordAX is **1.9x faster**.
+
+*Measured on Apple M3 Pro (2023) with JAX 0.9.0, Stable-Baselines3 2.8.0, PyTorch 2.11.0.*
 
 Run the benchmark yourself:
 ```bash
-pip install stable-baselines3
-python compare_sb3.py
+uv sync --extra benchmark
+uv run python compare_sb3.py
 ```
 
 
@@ -225,17 +228,17 @@ agent = make_agent("mlp/mlp", env, {
 
 ### Programmatic Policies
 
-**HyperBool** — Boolean function-based policies (`boolean/mlp`):
+**HyperBool** — Boolean function-based policies (`mlp/bool`):
 ```python
-agent = make_agent("boolean/mlp", env, {
+agent = make_agent("mlp/bool", env, {
     "n": 4,  # Number of boolean variables
     "value_layers": [128, 64, 32],
 })
 ```
 
-**DTSemNet** — Decision tree policies (`dt/mlp`):
+**DTSemNet** — Decision tree policies (`mlp/dt`):
 ```python
-agent = make_agent("dt/mlp", env, {
+agent = make_agent("mlp/dt", env, {
     "tree_depth": 4,
     "value_layers": [64, 64],
 })
@@ -243,10 +246,10 @@ agent = make_agent("dt/mlp", env, {
 
 ### DQN Agent
 
-**Q-Network** (`dqn`):
+**Q-Network** (`dqn/mlp`):
 ```python
-agent = make_agent("dqn", env, {
-    "layers": [64, 64],
+agent = make_agent("dqn/mlp", env, {
+    "q_layers": [64, 64],
 })
 ```
 
@@ -294,14 +297,17 @@ bordax/
 BordAX has a comprehensive test suite with **48 tests** achieving **77% code coverage**.
 
 ```bash
-# Run all tests (excluding slow)
-uv run pytest tests/ -m "not slow" -v
+# install test dependencies
+uv sync --extra dev
 
-# Run slow learning tests
-uv run pytest tests/ -m slow -v
+# run all tests (excluding slow)
+uv run python -m pytest tests/ -m "not slow" -v
 
-# Run with coverage
-uv run pytest tests/ --cov=bordax --cov-report=term-missing
+# run slow learning tests
+uv run python -m pytest tests/ -m slow -v
+
+# run with coverage
+uv run python -m pytest tests/ --cov=bordax --cov-report=term-missing
 ```
 
 ### Test Categories
@@ -343,6 +349,10 @@ python train_ppo.py --restore-last
 ## License
 
 BordAX is released under the [MIT License](LICENSE).
+
+## Support
+
+For questions, bug reports, and feature requests, please [open a GitHub Issue](https://github.com/SynthesisLab/bordax/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 

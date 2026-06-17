@@ -29,15 +29,45 @@ import flax.linen as nn
 import functools
 
 class Agent(ABC):
-    """Abstract agent interface."""
+    """Abstract base class for all agents.
+
+    Subclasses must implement ``init`` and ``policy``. The ``action``
+    method is provided as a JIT-compiled convenience wrapper around
+    ``policy``. Override ``value`` if the agent supports a value function
+    (required for actor-critic algorithms such as PPO).
+    """
 
     @abstractmethod
-    def init(self, key: PRNGKey, sample_obs: Any) -> AgentParameters: ...
+    def init(self, key: PRNGKey, sample_obs: Any) -> AgentParameters:
+        """Initialise network parameters.
+
+        Args:
+            key: JAX random key for weight initialisation.
+            sample_obs: A sample observation with the correct shape
+                (including the ``num_envs`` batch dimension).
+
+        Returns:
+            An ``AgentParameters`` pytree (e.g. ``PolicyValueParameters``
+            or ``DQNParameters``).
+        """
+        ...
 
     @abstractmethod
     def policy(
         self, params: AgentParameters, obs: Any, key: PRNGKey
-    ) -> Tuple[DistributionLike, Mapping[str, Any]]: ...
+    ) -> Tuple[DistributionLike, Mapping[str, Any]]:
+        """Compute the policy distribution for a batch of observations.
+
+        Args:
+            params: Current network parameters.
+            obs: Batch of observations, shape ``(num_envs, *obs_shape)``.
+            key: JAX random key (for stochastic policy heads).
+
+        Returns:
+            Tuple of ``(distribution, info)`` where ``distribution`` is a
+            Distrax distribution and ``info`` is a dict of auxiliary data.
+        """
+        ...
 
     @functools.partial(jax.jit, static_argnames=("self", "is_deterministic"))
     def action(
@@ -59,6 +89,18 @@ class Agent(ABC):
         )
 
     def value(self, params: Params, obs: Any) -> jnp.ndarray:
+        """Compute the value estimate for a batch of observations.
+
+        Args:
+            params: Current network parameters.
+            obs: Batch of observations, shape ``(num_envs, *obs_shape)``.
+
+        Returns:
+            Value estimates, shape ``(num_envs,)``.
+
+        Raises:
+            NotImplementedError: If the agent has no value function.
+        """
         raise NotImplementedError
 
 

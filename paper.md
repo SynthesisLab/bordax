@@ -24,10 +24,10 @@ bibliography: paper.bib
 # Summary
 
 BordAX is a Python framework for reinforcement learning (RL) built on JAX [@jax2018github].
-It provides a modular, fully JIT-compilable training pipeline that supports multiple policy representations, including standard multilayer perceptrons (MLPs), differentiable decision trees (DTSemNet), and boolean function networks (HyperBool).
+It provides a modular, fully JIT-compilable training pipeline that supports multiple policy representations, including standard multilayer perceptrons (MLPs), differentiable decision trees (DTSemNet, [@panda2024vanilla]), and boolean function networks (HyperBool).
 BordAX currently implements Proximal Policy Optimization (PPO) [@schulman2017proximal] and Deep Q-Networks (DQN) [@mnih2015human], and is designed so that additional algorithms can be composed from interchangeable collector, batch-builder, and updater components.
-The framework supports both Gymnax [@gymnax2022github] environments, which enable full JIT compilation of the training loop via `jax.lax.scan`, and standard Gymnasium [@brockman2016openai] environments.
-On a CartPole-v1 benchmark with identical hyperparameters, BordAX with Gymnax achieves approximately 3.2 times higher throughput than Stable-Baselines3 [@raffin2021stable].
+The framework supports both Gymnax [@gymnax2022github] environments, which enable full JIT compilation of the training loop via `jax.lax.scan`, and standard Gymnasium [@towers2026gymnasium] environments.
+On a CartPole-v1 benchmark with identical hyperparameters, BordAX with Gymnax achieves approximately 2.8 times higher throughput than Stable-Baselines3 [@raffin2021stable].
 
 # Statement of need
 
@@ -62,7 +62,7 @@ Gymnax [@gymnax2022github] offers JAX-based reimplementations of classic RL envi
 
 BordAX builds on Gymnax and JAX to provide a complete, modular training framework. Unlike PureJaxRL, BordAX factors the training pipeline into composable components (collectors, batch builders, updaters, loss functions) defined through abstract interfaces, allowing new algorithms to be added by implementing a small number of well-defined functions. Unlike Stable-Baselines3, BordAX achieves significantly higher throughput through JIT compilation. Unlike any of the above, BordAX includes built-in support for non-neural policy representations (differentiable decision trees and boolean function networks), which are relevant for research on interpretable RL [@verma2018programmatically; @silva2020optimization; @topin2021iterative].
 
-# Software design
+# Software Design
 
 BordAX is organized into five modules:
 
@@ -84,7 +84,11 @@ Loss functions are implemented as callable classes inheriting from `LossFn`. PPO
 
 BordAX was developed to support research on programmatic reinforcement learning. Its modular design enables systematic comparison of different policy representations (neural networks, decision trees, boolean functions) under identical algorithmic and environmental conditions. The framework is publicly available on GitHub under the MIT license and includes automated tests with 77% code coverage.
 
-On a CartPole-v1 benchmark using PPO with identical hyperparameters across five random seeds and 51,200 timesteps, BordAX with Gymnax completes training in 4.26 seconds (12,027 steps/s), compared to 13.79 seconds (3,714 steps/s) for Stable-Baselines3, a 3.2x throughput improvement. With Gymnasium environments, BordAX achieves 8,021 steps/s (2.2x speedup), demonstrating that JAX-based optimization of the update step alone provides a meaningful improvement. The benchmark script is included in the repository for reproducibility.
+On a CartPole-v1 benchmark using PPO with identical hyperparameters across five random seeds and 51,200 timesteps (Apple M3 Pro, JAX 0.9.0, SB3 2.8.0), BordAX with Gymnax completes training in 3.73 seconds (13,709 steps/s), compared to 10.40 seconds (4,923 steps/s) for Stable-Baselines3, a 2.8x throughput improvement. With Gymnasium environments, BordAX achieves 9,468 steps/s (1.9x speedup), demonstrating that JAX-based optimization of the update step alone provides a meaningful improvement. The benchmark script is included in the repository for reproducibility.
+
+# Author Contributions
+
+Roman Kniazev designed and implemented the BordAX framework, including the core architecture, algorithmic components, and test suite. Nathanaël Fijalkow provided supervision and research direction throughout the project.
 
 # AI usage disclosure
 
