@@ -66,12 +66,11 @@
   url = {http://jmlr.org/papers/v22/20-1364.html}
 }
 
-@article{towers2026gymnasium,
-  title={Gymnasium: A standard interface for reinforcement learning environments},
-  author={Towers, Mark and Kwiatkowski, Ariel and Balis, John and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Andreas, Kallinteris and Krimmel, Markus and Kg, Arjun and Perez-Vicente, Rodrigo and others},
-  journal={Advances in Neural Information Processing Systems},
-  volume={38},
-  year={2026}
+@article{towers2024gymnasium,
+  title={Gymnasium: A Standard Interface for Reinforcement Learning Environments},
+  author={Towers, Mark and Kwiatkowski, Ariel and Terry, Jordan and Balis, John U and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris, Andreas and Krimmel, Markus and KG, Arjun and others},
+  journal={arXiv preprint arXiv:2407.17032},
+  year={2024}
 }
 
 @inproceedings{verma2018programmatically,
@@ -82,15 +81,22 @@
   year = {2018},
   organization = {PMLR}
 }
-
-@article{silva2020optimization,
-  title = {Optimization Methods for Interpretable Differentiable Decision Trees Applied to Reinforcement Learning},
-  author = {Andrew Silva and Matthew Gombolay and Taylor Killian and Ivan Jimenez and Sung-Hyun Son},
-  journal = {Proceedings of the International Conference on Artificial Intelligence and Statistics},
-  pages = {1855--1865},
-  year = {2020},
-  organization = {PMLR}
+@InProceedings{silva2020optimization,
+  title = 	 {Optimization Methods for Interpretable Differentiable Decision Trees Applied to Reinforcement Learning},
+  author =       {Silva, Andrew and Killian, Taylor and Jimenez, Ivan and Son, Sung-Hyun and Gombolay, Matthew},
+  booktitle = 	 {Proceedings of the Twenty Third International Conference on Artificial Intelligence and Statistics},
+  pages = 	 {1855--1865},
+  year = 	 {2020},
+  editor = 	 {Chiappa, Silvia and Calandra, Roberto},
+  volume = 	 {108},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {26--28 Aug},
+  publisher =    {PMLR},
+  pdf = 	 {http://proceedings.mlr.press/v108/silva20a/silva20a.pdf},
+  url = 	 {https://proceedings.mlr.press/v108/silva20a.html},
+  abstract = 	 { Decision trees are ubiquitous in machine learning for their ease of use and interpretability. Yet, these models are not typically employed in reinforcement learning as they cannot be updated online via stochastic gradient descent. We overcome this limitation by allowing for a gradient update over the entire tree that improves sample complexity affords interpretable policy extraction. First, we include theoretical motivation on the need for policy-gradient learning by examining the properties of gradient descent over differentiable decision trees. Second, we demonstrate that our approach equals or outperforms a neural network on all domains and can learn discrete decision trees online with average rewards up to 7x higher than a batch-trained decision tree. Third, we conduct a user study to quantify the interpretability of a decision tree, rule list, and a neural network with statistically significant results (p &lt; 0.001).}
 }
+
 
 @inproceedings{panda2024vanilla,
   author       = {Subrat Prasad Panda and
